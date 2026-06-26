@@ -48,6 +48,7 @@ def broadcast_warnings(target_risk: str):
             if target_risk != "All" and pred["risk_label"] != target_risk:
                 continue
                 
+            student_email = student.user.email if student.user else ""
             parent_email = student.parent.email if student.parent else ""
             parent_phone = student.parent.phone if student.parent else ""
             
@@ -66,6 +67,8 @@ def broadcast_warnings(target_risk: str):
             print(f"Sending to {student.user.name} (Risk: {pred['risk_label']}, Score: {pred['risk_score']:.1f})...")
             
             # Dispatch alerts
+            if student_email:
+                send_email(db, student.id, student_email, f"URGENT: Academic Status Warning - {student.user.name}", alert_text)
             if parent_email:
                 send_email(db, student.id, parent_email, f"URGENT: Student Academic Warning - {student.user.name}", alert_text)
             if parent_phone:
