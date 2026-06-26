@@ -153,13 +153,21 @@ def send_sms(db: Session, student_id: int, recipient_phone: str, message: str) -
                 log_alert_to_db(db, student_id, "SMS", f"Telegram Chat: {chat_id}\nBody: {message}", "Sent (Telegram)")
                 print("Telegram SMS warning successfully delivered.")
                 return True
-            else:
-                print(f"Telegram API delivery failed: {response.text}")
-                log_alert_to_db(db, student_id, "SMS", message, "Failed (Telegram)")
-                return False
+            elif chat_id != telegram_chat_id and telegram_chat_id:
+                print(f"Telegram API delivery failed for {chat_id}. Falling back to default developer Chat ID: {telegram_chat_id}")
+                fallback_payload = {"chat_id": telegram_chat_id, "text": f"[Telegram Fallback from {chat_id}] {message}"}
+                fallback_response = requests.post(url, json=fallback_payload, timeout=10)
+                if fallback_response.status_code == 200:
+                    log_alert_to_db(db, student_id, "SMS", f"Telegram Chat: {telegram_chat_id} (Fallback from {chat_id})\nBody: {message}", "Sent (Telegram Fallback)")
+                    print("Telegram SMS warning successfully delivered to developer chat ID (fallback).")
+                    return True
+            
+            print(f"Telegram API delivery failed: {response.text}")
+            log_alert_to_db(db, student_id, "SMS", message, f"Failed (Telegram: {response.text})")
+            return False
         except Exception as e:
             print(f"Telegram API post failed: {e}")
-            log_alert_to_db(db, student_id, "SMS", message, "Failed")
+            log_alert_to_db(db, student_id, "SMS", message, f"Failed (Telegram Exception: {e})")
             return False
     elif SMTP_USERNAME and SMTP_PASSWORD and carrier_domain:
         # Clean phone number: remove non-digits (e.g. +919676670515 -> 919676670515)
