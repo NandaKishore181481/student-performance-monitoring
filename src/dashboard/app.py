@@ -1080,6 +1080,19 @@ elif st.session_state.user_role == "Parent":
     st.title("👪 Parent Dashboard")
     st.write(f"Logged in as parent for student: **{student_profile.user.name}** (Roll Number: **{student_profile.roll_number}**)")
     
+    # Telegram Bot Onboarding Call to Action
+    st.markdown(f"""
+    <div class='premium-card' style='border-left: 4px solid #0088cc; background: rgba(0, 136, 204, 0.05); margin-bottom: 20px;'>
+        <h4 style='color: #0088cc; margin-top: 0; font-family: "Plus Jakarta Sans", sans-serif; font-weight: 700;'>✈️ Receive Instant Telegram Alerts</h4>
+        <p style='margin-bottom: 12px; font-size: 0.95rem;'>To receive free academic status alerts and attendance warnings instantly on your mobile phone, please click the button below and tap <b>Start</b> in your Telegram app:</p>
+        <a href="https://t.me/eduinsights_ai_bot" target="_blank" style="text-decoration: none;">
+            <button style="background: linear-gradient(135deg, #0088cc 0%, #00a6ff 100%) !important; color: white !important; border: none !important; border-radius: 8px !important; padding: 10px 20px !important; font-weight: 600 !important; cursor: pointer !important; box-shadow: 0 4px 10px rgba(0, 136, 204, 0.2) !important;">
+                💬 Start Telegram Bot
+            </button>
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
+    
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
