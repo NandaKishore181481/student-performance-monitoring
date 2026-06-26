@@ -1,0 +1,1374 @@
+import os
+import sys
+import streamlit as st
+import pandas as pd
+import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
+from datetime import datetime, date
+
+# Ensure root directory is in python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
+from src.database import SessionLocal, User, StudentProfile, AcademicMarks, FacultyRemarks, Assignment, AlertLog, hash_password, verify_password
+from src.ml_models import predict_student_risk, get_explainable_ai, train_and_select_best_model
+from src.analytics import run_student_clustering, analyze_remark_sentiment, predict_exam_pass_probability
+from src.alerts import send_email, send_sms, send_whatsapp, generate_personalized_ai_alert
+from src.automation.face_recognition import FaceAttendanceManager
+from src.automation.ocr_marks import OCRMarksUploader
+from src.automation.assignment_tracker import check_pending_assignments_and_alert
+from src.reporting import generate_student_pdf_report
+
+# Page Config
+st.set_page_config(
+    page_title="EduInsight AI - Student Performance & Monitoring System",
+    page_icon="🎓",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Theme Choice Selection
+if "theme_mode" not in st.session_state:
+    st.session_state.theme_mode = "☀️ Light Mode"
+
+# Sidebar selector for theme
+st.sidebar.markdown("### 🎨 Interface Theme")
+theme_choice = st.sidebar.selectbox(
+    "Theme Mode",
+    ["☀️ Light Mode", "🌙 Dark Mode"],
+    index=0 if st.session_state.theme_mode == "☀️ Light Mode" else 1,
+    key="theme_mode_selector",
+    label_visibility="collapsed"
+)
+st.session_state.theme_mode = theme_choice
+is_dark = (theme_choice == "🌙 Dark Mode") and st.session_state.get("authenticated", False)
+plotly_font_color = "#F8FAFC" if is_dark else "#1E293B"
+
+if is_dark:
+    # --- DARK MODE CSS ---
+    theme_css = """
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
+        
+        /* ═══ BASE TYPOGRAPHY ═══ */
+        html, body, [class*="css"] {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: #F8FAFC !important;
+        }
+        
+        /* ═══ MAIN BACKGROUND ═══ */
+        .main {
+            background-color: #0F172A !important;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(30, 41, 59, 0.7) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(15, 23, 42, 0.8) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(30, 41, 59, 0.5) 0px, transparent 50%),
+                radial-gradient(at 0% 100%, rgba(17, 24, 39, 0.9) 0px, transparent 50%) !important;
+            background-attachment: fixed !important;
+            color: #F8FAFC !important;
+        }
+        .main .block-container {
+            padding-top: 2rem;
+        }
+        
+        /* ═══ FORCE ALL TEXT LIGHT ═══ */
+        .main p, .main span, .main label, .main li, .main blockquote,
+        .main th, .main td, .main div, .main a {
+            color: #F8FAFC !important;
+        }
+        
+        /* ═══ HEADINGS ═══ */
+        h1 {
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+            color: #FFFFFF !important;
+            font-weight: 800 !important;
+            font-size: 2rem !important;
+        }
+        h2, h3 {
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+            color: #FFFFFF !important;
+            font-weight: 700 !important;
+        }
+        h4, h5, h6 {
+            font-family: 'Inter', sans-serif !important;
+            color: #E2E8F0 !important;
+            font-weight: 600 !important;
+        }
+        
+        /* ═══ METRIC CARDS ═══ */
+        [data-testid="stMetricValue"] {
+            color: #FFFFFF !important;
+            font-weight: 700 !important;
+            font-size: 1.8rem !important;
+        }
+        [data-testid="stMetricLabel"] {
+            color: #94A3B8 !important;
+            font-weight: 500 !important;
+        }
+        [data-testid="stMetricDelta"] {
+            color: #34D399 !important;
+        }
+        div[data-testid="metric-container"] {
+            background-color: #1E293B !important;
+            border: 1px solid #334155 !important;
+            border-radius: 12px !important;
+            padding: 16px !important;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06) !important;
+        }
+        
+        /* ═══ INPUTS / SELECTS / TEXTAREAS ═══ */
+        div[data-baseweb="select"] > div,
+        div[data-baseweb="input"] > div,
+        input, select, textarea {
+            background-color: #1E293B !important;
+            color: #F8FAFC !important;
+            border: 1.5px solid #475569 !important;
+            border-radius: 8px !important;
+        }
+        input::placeholder, textarea::placeholder {
+            color: #64748B !important;
+        }
+        
+        /* ═══ BUTTONS ═══ */
+        .stButton > button {
+            background: linear-gradient(135deg, #3B82F6, #2563EB) !important;
+            color: #FFFFFF !important;
+            border: none !important;
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            padding: 0.5rem 1.5rem !important;
+            transition: all 0.2s ease !important;
+        }
+        .stButton > button:hover {
+            background: linear-gradient(135deg, #2563EB, #1D4ED8) !important;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3) !important;
+            transform: translateY(-1px) !important;
+        }
+        
+        /* ═══ SIDEBAR ═══ */
+        section[data-testid="stSidebar"] {
+            background-color: #0F172A !important;
+            border-right: 1px solid #1E293B;
+        }
+        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] span,
+        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] label,
+        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] li {
+            color: #F8FAFC !important;
+        }
+        section[data-testid="stSidebar"] h1,
+        section[data-testid="stSidebar"] h2,
+        section[data-testid="stSidebar"] h3 {
+            color: #FFFFFF !important;
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+        }
+        section[data-testid="stSidebar"] .stButton > button {
+            background: rgba(255,255,255,0.05) !important;
+            color: #F8FAFC !important;
+            border: 1px solid rgba(255,255,255,0.1) !important;
+        }
+        section[data-testid="stSidebar"] .stButton > button:hover {
+            background: rgba(255,255,255,0.1) !important;
+        }
+        
+        /* ═══ PREMIUM CARD ═══ */
+        .premium-card {
+            background: #1E293B;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -2px rgba(0,0,0,0.05);
+            border-left: 4px solid #3B82F6;
+        }
+        
+        .text-muted {
+            color: #94A3B8 !important;
+            font-size: 0.9rem;
+        }
+        
+        /* ═══ TABS ═══ */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 8px;
+            background-color: #1E293B;
+            border-radius: 10px;
+            padding: 4px;
+        }
+        .stTabs [data-baseweb="tab"] {
+            border-radius: 8px;
+            color: #94A3B8 !important;
+            font-weight: 500;
+            padding: 8px 16px;
+        }
+        .stTabs [aria-selected="true"] {
+            background-color: #0F172A !important;
+            color: #FFFFFF !important;
+            font-weight: 600;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.2);
+        }
+        
+        /* ═══ TABLES ═══ */
+        .stDataFrame, .stTable {
+            background-color: #1E293B !important;
+            border-radius: 8px !important;
+        }
+        .stDataFrame th {
+            background-color: #0F172A !important;
+            color: #FFFFFF !important;
+            font-weight: 600 !important;
+        }
+        .stDataFrame td {
+            color: #F8FAFC !important;
+        }
+        
+        /* ═══ RADIO BUTTONS ═══ */
+        .stRadio > div {
+            color: #F8FAFC !important;
+        }
+        .stRadio label {
+            color: #F8FAFC !important;
+        }
+        
+        /* ═══ STATUS BADGES ═══ */
+        .status-high {
+            background-color: #7F1D1D;
+            color: #FCA5A5 !important;
+            border: 1px solid #991B1B;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-weight: 600;
+            display: inline-block;
+            font-size: 0.85rem;
+        }
+        .status-medium {
+            background-color: #78350F;
+            color: #FDE68A !important;
+            border: 1px solid #92400E;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-weight: 600;
+            display: inline-block;
+            font-size: 0.85rem;
+        }
+        .status-low {
+            background-color: #064E3B;
+            color: #A7F3D0 !important;
+            border: 1px solid #065F46;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-weight: 600;
+            display: inline-block;
+            font-size: 0.85rem;
+        }
+        
+        /* ═══ EXPANDER ═══ */
+        .streamlit-expanderHeader {
+            color: #F8FAFC !important;
+            font-weight: 600 !important;
+            background-color: #1E293B !important;
+            border-radius: 8px !important;
+        }
+        
+        /* ═══ SELECTBOX DROPDOWN TEXT ═══ */
+        [data-baseweb="menu"] li {
+            color: #F8FAFC !important;
+            background-color: #1E293B !important;
+        }
+        [data-baseweb="menu"] li:hover {
+            background-color: #334155 !important;
+        }
+        
+        /* ═══ PLOTLY CHART BACKGROUNDS ═══ */
+        .js-plotly-plot .plotly .main-svg {
+            background: transparent !important;
+        }
+    </style>
+    """
+else:
+    # --- LIGHT MODE CSS ---
+    theme_css = """
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
+        
+        /* ═══ BASE TYPOGRAPHY ═══ */
+        html, body, [class*="css"] {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: #1a1a2e !important;
+        }
+        
+        /* ═══ MAIN BACKGROUND ═══ */
+        .main {
+            background-color: #FFFFFF !important;
+            background-image: none !important;
+            color: #1a1a2e !important;
+        }
+        .main .block-container {
+            padding-top: 2rem;
+        }
+        
+        /* ═══ FORCE ALL TEXT DARK ═══ */
+        .main p, .main span, .main label, .main li, .main blockquote,
+        .main th, .main td, .main div, .main a {
+            color: #1a1a2e !important;
+        }
+        
+        /* ═══ HEADINGS ═══ */
+        h1 {
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+            color: #1a1a2e !important;
+            font-weight: 800 !important;
+            font-size: 2rem !important;
+        }
+        h2, h3 {
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+            color: #1a1a2e !important;
+            font-weight: 700 !important;
+        }
+        h4, h5, h6 {
+            font-family: 'Inter', sans-serif !important;
+            color: #334155 !important;
+            font-weight: 600 !important;
+        }
+        
+        /* ═══ METRIC CARDS ═══ */
+        [data-testid="stMetricValue"] {
+            color: #1a1a2e !important;
+            font-weight: 700 !important;
+            font-size: 1.8rem !important;
+        }
+        [data-testid="stMetricLabel"] {
+            color: #475569 !important;
+            font-weight: 500 !important;
+        }
+        [data-testid="stMetricDelta"] {
+            color: #059669 !important;
+        }
+        div[data-testid="metric-container"] {
+            background-color: #FFFFFF !important;
+            border: 1px solid #E2E8F0 !important;
+            border-radius: 12px !important;
+            padding: 16px !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
+        }
+        
+        /* ═══ INPUTS / SELECTS / TEXTAREAS ═══ */
+        div[data-baseweb="select"] > div,
+        div[data-baseweb="input"] > div,
+        input, select, textarea {
+            background-color: #FFFFFF !important;
+            color: #1a1a2e !important;
+            border: 1.5px solid #CBD5E1 !important;
+            border-radius: 8px !important;
+        }
+        input::placeholder, textarea::placeholder {
+            color: #94A3B8 !important;
+        }
+        
+        /* ═══ BUTTONS ═══ */
+        .stButton > button {
+            background: linear-gradient(135deg, #3B82F6, #2563EB) !important;
+            color: #FFFFFF !important;
+            border: none !important;
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            padding: 0.5rem 1.5rem !important;
+            transition: all 0.2s ease !important;
+        }
+        .stButton > button:hover {
+            background: linear-gradient(135deg, #2563EB, #1D4ED8) !important;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3) !important;
+            transform: translateY(-1px) !important;
+        }
+        
+        /* ═══ SIDEBAR ═══ */
+        section[data-testid="stSidebar"] {
+            background-color: #1E293B !important;
+            border-right: 1px solid #334155;
+        }
+        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p,
+        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] span,
+        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] label,
+        section[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] li {
+            color: #E2E8F0 !important;
+        }
+        section[data-testid="stSidebar"] h1,
+        section[data-testid="stSidebar"] h2,
+        section[data-testid="stSidebar"] h3 {
+            color: #F1F5F9 !important;
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+        }
+        section[data-testid="stSidebar"] .stButton > button {
+            background: rgba(255,255,255,0.1) !important;
+            color: #F1F5F9 !important;
+            border: 1px solid rgba(255,255,255,0.2) !important;
+        }
+        section[data-testid="stSidebar"] .stButton > button:hover {
+            background: rgba(255,255,255,0.2) !important;
+        }
+        
+        /* ═══ PREMIUM CARD ═══ */
+        .premium-card {
+            background: #FFFFFF;
+            border: 1px solid #E2E8F0;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 4px 12px rgba(0,0,0,0.03);
+            border-left: 4px solid #3B82F6;
+        }
+        
+        .text-muted {
+            color: #64748B !important;
+            font-size: 0.9rem;
+        }
+        
+        /* ═══ TABS ═══ */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 8px;
+            background-color: #F1F5F9;
+            border-radius: 10px;
+            padding: 4px;
+        }
+        .stTabs [data-baseweb="tab"] {
+            border-radius: 8px;
+            color: #475569 !important;
+            font-weight: 500;
+            padding: 8px 16px;
+        }
+        .stTabs [aria-selected="true"] {
+            background-color: #FFFFFF !important;
+            color: #1a1a2e !important;
+            font-weight: 600;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        /* ═══ TABLES ═══ */
+        .stDataFrame, .stTable {
+            background-color: #FFFFFF !important;
+            border-radius: 8px !important;
+        }
+        .stDataFrame th {
+            background-color: #F1F5F9 !important;
+            color: #1a1a2e !important;
+            font-weight: 600 !important;
+        }
+        .stDataFrame td {
+            color: #1a1a2e !important;
+        }
+        
+        /* ═══ RADIO BUTTONS ═══ */
+        .stRadio > div {
+            color: #1a1a2e !important;
+        }
+        .stRadio label {
+            color: #1a1a2e !important;
+        }
+        
+        /* ═══ STATUS BADGES ═══ */
+        .status-high {
+            background-color: #FEF2F2;
+            color: #DC2626 !important;
+            border: 1px solid #FECACA;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-weight: 600;
+            display: inline-block;
+            font-size: 0.85rem;
+        }
+        .status-medium {
+            background-color: #FFFBEB;
+            color: #D97706 !important;
+            border: 1px solid #FDE68A;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-weight: 600;
+            display: inline-block;
+            font-size: 0.85rem;
+        }
+        .status-low {
+            background-color: #F0FDF4;
+            color: #16A34A !important;
+            border: 1px solid #BBF7D0;
+            padding: 4px 14px;
+            border-radius: 20px;
+            font-weight: 600;
+            display: inline-block;
+            font-size: 0.85rem;
+        }
+        
+        /* ═══ EXPANDER ═══ */
+        .streamlit-expanderHeader {
+            color: #1a1a2e !important;
+            font-weight: 600 !important;
+            background-color: #F8FAFC !important;
+            border-radius: 8px !important;
+        }
+        
+        /* ═══ SELECTBOX DROPDOWN TEXT ═══ */
+        [data-baseweb="menu"] li {
+            color: #1a1a2e !important;
+        }
+        
+        /* ═══ PLOTLY CHART BACKGROUNDS ═══ */
+        .js-plotly-plot .plotly .main-svg {
+            background: transparent !important;
+        }
+    </style>
+    """
+
+st.markdown(theme_css, unsafe_allow_html=True)
+
+
+# Session State Initialization
+if "authenticated" not in st.session_state:
+    st.session_state.authenticated = False
+    st.session_state.user_role = None
+    st.session_state.username = None
+    st.session_state.user_id = None
+    st.session_state.name = None
+
+db = SessionLocal()
+
+# --- AUTHENTICATION SHIELD ---
+def auth_page():
+    # Logo and Header
+    st.markdown("""
+    <div style='text-align: center; margin-bottom: 10px;'>
+        <div style='display: inline-block; background: linear-gradient(135deg, #3B82F6, #8B5CF6); padding: 16px 18px; border-radius: 20px; box-shadow: 0 10px 30px rgba(139, 92, 246, 0.4); margin-bottom: 15px;'>
+            <span style='font-size: 2.5rem; line-height: 1;'>🧠</span>
+        </div>
+        <h1>EduInsight AI</h1>
+        <p class='text-muted'>Student Performance Monitoring & Alert System</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        login_tab, signup_tab = st.tabs(["🔑 Login", "📝 Sign Up"])
+        
+        # ────────── LOGIN TAB ──────────
+        with login_tab:
+            st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+            st.subheader("Welcome Back")
+            login_method = st.radio("Login with", ["Username", "Email"], horizontal=True, key="login_method")
+            
+            if login_method == "Username":
+                login_id = st.text_input("👤 Username / Email", key="login_user")
+            else:
+                login_id = st.text_input("📧 Email Address", key="login_email")
+            
+            password = st.text_input("🔒 Password", type="password", key="login_pass")
+            
+            # Remember Me & Forgot Password Layout
+            c_rem, c_forg = st.columns([1.2, 1])
+            with c_rem:
+                remember_me = st.checkbox("Remember Me", value=True, key="remember_me")
+            with c_forg:
+                st.markdown("<div style='text-align: right; padding-top: 4px;'><a href='#' class='forgot-link'>Forgot Password?</a></div>", unsafe_allow_html=True)
+            
+            st.markdown("<br/>", unsafe_allow_html=True)
+            if st.button("Log In", use_container_width=True, key="btn_login"):
+                if not login_id or not password:
+                    st.warning("Please enter your credentials.")
+                else:
+                    # Look up user by username or email
+                    if login_method == "Username":
+                        user = db.query(User).filter(User.username == login_id).first()
+                    else:
+                        user = db.query(User).filter(User.email == login_id).first()
+                    
+                    if user and verify_password(password, user.hashed_password):
+                        st.session_state.authenticated = True
+                        st.session_state.user_role = user.role
+                        st.session_state.username = user.username
+                        st.session_state.user_id = user.id
+                        st.session_state.name = user.name
+                        st.success(f"Welcome, {user.name}!")
+                        st.rerun()
+                    else:
+                        st.error("Invalid credentials. Please check and try again.")
+            
+            # Sign Up Link below the form
+            st.markdown("<div style='text-align: center; margin-top: 15px; font-size: 0.9rem; color: #94A3B8;'>Don't have an account? <span style='color: #3B82F6; font-weight: 600;'>Sign Up above</span></div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+        
+        # ────────── SIGN UP TAB ──────────
+        with signup_tab:
+            st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+            st.subheader("Create New Account")
+            
+            su_role = st.selectbox("I am a", ["Student", "Faculty", "Parent", "HOD"], key="su_role")
+            
+            su_col1, su_col2 = st.columns(2)
+            with su_col1:
+                su_fullname = st.text_input("Full Name *", key="su_name")
+                su_username = st.text_input("Username *", key="su_user", help="Unique login ID — no spaces")
+            with su_col2:
+                su_email = st.text_input("Email *", key="su_email")
+                su_phone = st.text_input("Phone", key="su_phone")
+            
+            su_pass = st.text_input("Password *", type="password", key="su_pass")
+            su_pass2 = st.text_input("Confirm Password *", type="password", key="su_pass2")
+            
+            # ── Student-specific fields ──
+            if su_role == "Student":
+                st.markdown("---")
+                st.markdown("**📋 Student Details**")
+                sc1, sc2, sc3, sc4 = st.columns(4)
+                with sc1:
+                    su_roll = st.text_input("Roll Number *", key="su_roll")
+                with sc2:
+                    su_dept = st.text_input("Department Code", key="su_dept", help="e.g. CS, ECE, MECH")
+                with sc3:
+                    su_year = st.selectbox("Year", [1, 2, 3, 4], key="su_year")
+                with sc4:
+                    su_section = st.text_input("Section", value="A", key="su_section")
+            
+            # ── Parent-specific fields ──
+            if su_role == "Parent":
+                st.markdown("---")
+                st.markdown("**🔗 Link to Student**")
+                su_child_roll = st.text_input("Your Child's Roll Number *", key="su_child_roll", help="Must match an existing student roll number")
+            
+            st.markdown("")
+            if st.button("Create Account", use_container_width=True, type="primary", key="btn_signup"):
+                # ── Validation ──
+                errors = []
+                if not su_fullname:
+                    errors.append("Full Name is required.")
+                if not su_username:
+                    errors.append("Username is required.")
+                elif " " in su_username:
+                    errors.append("Username cannot contain spaces.")
+                if not su_email:
+                    errors.append("Email is required.")
+                if not su_pass:
+                    errors.append("Password is required.")
+                elif len(su_pass) < 4:
+                    errors.append("Password must be at least 4 characters.")
+                if su_pass != su_pass2:
+                    errors.append("Passwords do not match.")
+                
+                # Check username uniqueness
+                if su_username and db.query(User).filter(User.username == su_username).first():
+                    errors.append(f"Username '{su_username}' is already taken.")
+                # Check email uniqueness
+                if su_email and db.query(User).filter(User.email == su_email).first():
+                    errors.append(f"Email '{su_email}' is already registered.")
+                
+                # Student-specific validation
+                if su_role == "Student":
+                    if not su_roll:
+                        errors.append("Roll Number is required for students.")
+                    elif db.query(StudentProfile).filter(StudentProfile.roll_number == su_roll).first():
+                        errors.append(f"Roll Number '{su_roll}' already exists.")
+                
+                # Parent-specific validation
+                if su_role == "Parent":
+                    if not su_child_roll:
+                        errors.append("Your child's Roll Number is required.")
+                    else:
+                        child_profile = db.query(StudentProfile).filter(StudentProfile.roll_number == su_child_roll).first()
+                        if not child_profile:
+                            errors.append(f"No student found with Roll Number '{su_child_roll}'.")
+                
+                if errors:
+                    for e in errors:
+                        st.error(e)
+                else:
+                    try:
+                        # Create the User
+                        new_user = User(
+                            username=su_username,
+                            hashed_password=hash_password(su_pass),
+                            role=su_role,
+                            name=su_fullname,
+                            email=su_email,
+                            phone=su_phone or ""
+                        )
+                        db.add(new_user)
+                        db.flush()
+                        
+                        # Create StudentProfile if Student
+                        if su_role == "Student":
+                            dept = su_dept.strip().upper() if su_dept else ""
+                            class_section = f"{dept}-Y{su_year}{su_section}" if dept else f"Y{su_year}{su_section}"
+                            profile = StudentProfile(
+                                user_id=new_user.id,
+                                roll_number=su_roll,
+                                class_section=class_section,
+                                attendance_pct=0.0
+                            )
+                            db.add(profile)
+                        
+                        # Link Parent to existing student
+                        if su_role == "Parent":
+                            child_profile = db.query(StudentProfile).filter(StudentProfile.roll_number == su_child_roll).first()
+                            if child_profile:
+                                child_profile.parent_id = new_user.id
+                        
+                        db.commit()
+                        st.success(f"✅ Account created successfully! You can now log in with username: **{su_username}**")
+                        st.balloons()
+                    except Exception as ex:
+                        db.rollback()
+                        st.error(f"Registration failed: {ex}")
+            
+            st.markdown("</div>", unsafe_allow_html=True)
+
+if not st.session_state.authenticated:
+    st.markdown("""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
+        
+        /* ═══ HIDE SIDEBAR ON LOGIN ═══ */
+        [data-testid="stSidebar"], section[data-testid="stSidebar"] {
+            display: none !important;
+        }
+        
+        /* ═══ TYPOGRAPHY ═══ */
+        html, body, [class*="css"], .main * {
+            font-family: 'Poppins', sans-serif !important;
+            color: #F8FAFC !important;
+        }
+        
+        /* ═══ FULL SCREEN BACKGROUND GRADIENT WITH BLUR BLOBS ═══ */
+        .main {
+            background-color: #0F172A !important;
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(139, 92, 246, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 50% 50%, rgba(6, 182, 212, 0.1) 0%, transparent 50%),
+                radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px) !important;
+            background-size: auto, auto, auto, 24px 24px !important;
+            background-attachment: fixed !important;
+        }
+        
+        /* Animated Blurred Blobs */
+        .main::before {
+            content: "";
+            position: fixed;
+            top: -10%;
+            left: -10%;
+            width: 50vw;
+            height: 50vw;
+            background: radial-gradient(circle, rgba(139, 92, 246, 0.25) 0%, transparent 70%);
+            filter: blur(80px);
+            z-index: 0;
+            pointer-events: none;
+            animation: float-blob-1 25s infinite alternate ease-in-out;
+        }
+        
+        .main::after {
+            content: "";
+            position: fixed;
+            bottom: -10%;
+            right: -10%;
+            width: 50vw;
+            height: 50vw;
+            background: radial-gradient(circle, rgba(6, 182, 212, 0.25) 0%, transparent 70%);
+            filter: blur(80px);
+            z-index: 0;
+            pointer-events: none;
+            animation: float-blob-2 20s infinite alternate ease-in-out;
+        }
+        
+        @keyframes float-blob-1 {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(15vw, 10vh) scale(1.1); }
+        }
+        @keyframes float-blob-2 {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(-10vw, -15vh) scale(1.2); }
+        }
+        
+        /* ═══ MAIN LAYOUT CONTAINER ═══ */
+        .main .block-container {
+            max-width: 520px !important;
+            margin: auto !important;
+            padding-top: 6vh !important;
+            padding-bottom: 6vh !important;
+            z-index: 10 !important;
+            position: relative !important;
+        }
+        
+        /* ═══ GLASSMORPHISM LOGIN CARD ═══ */
+        .premium-card {
+            background: rgba(30, 41, 59, 0.45) !important;
+            backdrop-filter: blur(25px) saturate(190%) !important;
+            -webkit-backdrop-filter: blur(25px) saturate(190%) !important;
+            border: 1px solid rgba(255, 255, 255, 0.09) !important;
+            border-radius: 20px !important;
+            padding: 35px 30px !important;
+            box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.4) !important;
+            margin-top: 15px !important;
+            transition: all 0.3s ease !important;
+        }
+        
+        /* ═══ LOGO & HEADINGS ═══ */
+        h1 {
+            font-weight: 800 !important;
+            letter-spacing: -0.5px !important;
+            background: linear-gradient(135deg, #FFFFFF 30%, #E2E8F0 60%, #3B82F6 100%);
+            -webkit-background-clip: text !important;
+            -webkit-text-fill-color: transparent !important;
+            font-size: 2.2rem !important;
+            margin-bottom: 8px !important;
+            text-align: center !important;
+            text-shadow: 0 0 30px rgba(59, 130, 246, 0.2);
+        }
+        .text-muted {
+            color: #94A3B8 !important;
+            font-weight: 400 !important;
+            font-size: 0.95rem !important;
+            text-align: center !important;
+            margin-bottom: 20px !important;
+        }
+        
+        h2, h3 {
+            font-weight: 700 !important;
+            color: #FFFFFF !important;
+        }
+        
+        /* ═══ INPUTS ═══ */
+        div[data-baseweb="input"] > div, input, select, textarea {
+            background-color: rgba(15, 23, 42, 0.5) !important;
+            color: #FFFFFF !important;
+            border: 1.5px solid rgba(255, 255, 255, 0.1) !important;
+            border-radius: 12px !important;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            padding: 2px 5px !important;
+        }
+        div[data-baseweb="input"] > div:focus-within, input:focus {
+            border-color: #3B82F6 !important;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25) !important;
+            background-color: rgba(15, 23, 42, 0.75) !important;
+        }
+        
+        input::placeholder {
+            color: #64748B !important;
+        }
+        
+        /* ═══ GRADIENT BUTTON ═══ */
+        .stButton > button {
+            background: linear-gradient(135deg, #3B82F6 0%, #8B5CF6 50%, #06B6D4 100%) !important;
+            color: #FFFFFF !important;
+            border: none !important;
+            border-radius: 12px !important;
+            font-weight: 600 !important;
+            font-size: 1rem !important;
+            letter-spacing: 0.3px !important;
+            padding: 0.7rem 2rem !important;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3) !important;
+        }
+        .stButton > button:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 6px 25px rgba(139, 92, 246, 0.55) !important;
+            background: linear-gradient(135deg, #2563EB 0%, #7C3AED 50%, #0891B2 100%) !important;
+        }
+        .stButton > button:active {
+            transform: translateY(0) !important;
+        }
+        
+        /* ═══ TABS ═══ */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 12px;
+            background-color: rgba(15, 23, 42, 0.45) !important;
+            border: 1px solid rgba(255, 255, 255, 0.08) !important;
+            border-radius: 14px;
+            padding: 6px;
+        }
+        .stTabs [data-baseweb="tab"] {
+            border-radius: 10px;
+            color: #94A3B8 !important;
+            font-weight: 500;
+            padding: 10px 20px;
+            transition: all 0.3s ease !important;
+        }
+        .stTabs [aria-selected="true"] {
+            background-color: rgba(255, 255, 255, 0.1) !important;
+            color: #FFFFFF !important;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        /* ═══ RADIO BUTTONS ═══ */
+        .stRadio label {
+            color: #E2E8F0 !important;
+            font-size: 0.95rem !important;
+        }
+        
+        .forgot-link {
+            float: right;
+            color: #3B82F6 !important;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+        .forgot-link:hover {
+            color: #60A5FA !important;
+            text-decoration: underline;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+    auth_page()
+    sys.exit()
+
+# Sidebar Logout
+st.sidebar.markdown(f"### Logged in as:<br/>**{st.session_state.name}**<br/>`<span class='text-muted'>{st.session_state.user_role}</span>`", unsafe_allow_html=True)
+if st.sidebar.button("Logout", use_container_width=True):
+    st.session_state.authenticated = False
+    st.session_state.user_role = None
+    st.session_state.username = None
+    st.session_state.user_id = None
+    st.session_state.name = None
+    st.rerun()
+
+st.sidebar.markdown("---")
+
+# --- PORTALS ORCHESTRATION ---
+
+# Fetch details if student or parent
+student_profile = None
+if st.session_state.user_role == "Student":
+    student_profile = db.query(StudentProfile).filter(StudentProfile.user_id == st.session_state.user_id).first()
+elif st.session_state.user_role == "Parent":
+    student_profile = db.query(StudentProfile).filter(StudentProfile.parent_id == st.session_state.user_id).first()
+
+# Helper for risk details
+def get_student_ml_data(profile):
+    marks = profile.marks
+    avg_internal = sum(m.internal_marks for m in marks) / len(marks) if marks else 0.0
+    avg_assign = sum(m.assignment_scores for m in marks) / len(marks) if marks else 0.0
+    avg_exam = sum(m.exam_marks for m in marks if m.exam_marks is not None) / len(marks) if marks else 0.0
+    
+    assignments = profile.assignments
+    sub_rate = sum(1 for a in assignments if a.status in ["Submitted", "Graded"]) / len(assignments) if assignments else 1.0
+    remarks = profile.remarks
+    avg_sentiment = sum(r.sentiment_score for r in remarks) / len(remarks) if remarks else 0.0
+    
+    return {
+        "attendance_pct": profile.attendance_pct,
+        "internal_marks_avg": avg_internal,
+        "assignment_score_avg": avg_assign,
+        "exam_marks_avg": avg_exam,
+        "assignment_completion_rate": sub_rate,
+        "sentiment_score_avg": avg_sentiment,
+        "overall_academic": avg_internal + avg_assign + avg_exam
+    }
+
+
+# ==================== STUDENT PORTAL ====================
+if st.session_state.user_role == "Student":
+    st.title("👨‍🎓 Student Dashboard")
+    st.write(f"Welcome back, **{st.session_state.name}** | Roll Number: **{student_profile.roll_number}** | Section: **{student_profile.class_section}**")
+    
+    # 1. Row cards
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+        st.metric("Attendance", f"{student_profile.attendance_pct:.1f}%", help="Required: 75%")
+        st.markdown("</div>", unsafe_allow_html=True)
+    with c2:
+        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+        # Predict risk
+        ml_data = get_student_ml_data(student_profile)
+        pred = predict_student_risk(ml_data)
+        risk = pred["risk_label"]
+        score = pred["risk_score"]
+        
+        status_class = "status-low" if risk == "Low" else ("status-medium" if risk == "Medium" else "status-high")
+        st.write("AI Risk Status:")
+        st.markdown(f"<span class='{status_class}'>{risk} Risk ({score:.1f}/100)</span>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+    with c3:
+        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+        pass_prob = predict_exam_pass_probability(student_profile.attendance_pct, ml_data["internal_marks_avg"], ml_data["assignment_completion_rate"])
+        st.metric("Final Exam Pass Probability", f"{pass_prob*100:.1f}%")
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    # 2. Charts and explanations
+    col_left, col_right = st.columns([1.5, 1])
+    
+    with col_left:
+        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+        st.subheader("Academic Marks Trend")
+        
+        # Load marks
+        marks_records = student_profile.marks
+        if marks_records:
+            subjects = [m.subject for m in marks_records]
+            internals = [m.internal_marks for m in marks_records]
+            assignments = [m.assignment_scores for m in marks_records]
+            exams = [m.exam_marks or 0.0 for m in marks_records]
+            
+            fig = go.Figure(data=[
+                go.Bar(name='Internals (30)', x=subjects, y=internals, marker_color='#3B82F6'),
+                go.Bar(name='Assignments (20)', x=subjects, y=assignments, marker_color='#10B981'),
+                go.Bar(name='Exams (50)', x=subjects, y=exams, marker_color='#8B5CF6')
+            ])
+            fig.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color=plotly_font_color)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("No grades recorded yet.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    with col_right:
+        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+        st.subheader("AI Performance Diagnostics")
+        explain = get_explainable_ai(ml_data)
+        
+        for r in explain["reasons"]:
+            impact_color = "🔴" if "High" in r["impact"] else ("🟡" if "Moderate" in r["impact"] else "🟢")
+            st.markdown(f"**{impact_color} {r['feature']}:** {r['value']} | *{r['impact']}*")
+            st.caption(r["description"])
+            st.write("")
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    # 3. Actions and Report
+    st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+    st.subheader("Actionable Recommendations")
+    
+    if risk == "High":
+        st.error("Immediate attention required! Attendance and marks are critical. Attend remedial coaching sessions daily.")
+    elif risk == "Medium":
+        st.warning("Keep monitor on your grade trends and ensure assignments are submitted before deadline.")
+    else:
+        st.success("Great job! Keep up the excellent work. Consider mentoring fellow classmates.")
+        
+    # Report generation
+    if st.button("Download PDF Progress Report", use_container_width=True):
+        pdf_file = generate_student_pdf_report(db, student_profile.id)
+        with open(pdf_file, "rb") as f:
+            st.download_button(
+                label="Click here to save PDF",
+                data=f,
+                file_name=os.path.basename(pdf_file),
+                mime="application/pdf",
+                use_container_width=True
+            )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+# ==================== PARENT PORTAL ====================
+elif st.session_state.user_role == "Parent":
+    st.title("👪 Parent Dashboard")
+    st.write(f"Logged in as parent for student: **{student_profile.user.name}** (Roll Number: **{student_profile.roll_number}**)")
+    
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+        st.metric("Child Attendance", f"{student_profile.attendance_pct:.1f}%")
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    with c2:
+        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+        ml_data = get_student_ml_data(student_profile)
+        pred = predict_student_risk(ml_data)
+        st.write("AI-generated Academic Risk Evaluation:")
+        status_class = "status-low" if pred["risk_label"] == "Low" else ("status-medium" if pred["risk_label"] == "Medium" else "status-high")
+        st.markdown(f"<span class='{status_class}'>{pred['risk_label']} Risk ({pred['risk_score']:.1f}/100)</span>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    # Notification logs
+    st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+    st.subheader("Notification & Alert Log History")
+    alerts = db.query(AlertLog).filter(AlertLog.student_id == student_profile.id).order_by(AlertLog.timestamp.desc()).all()
+    if alerts:
+        alert_data = [{"Timestamp": a.timestamp.strftime("%Y-%m-%d %H:%M"), "Type": a.type, "Message Content": a.message, "Status": a.status} for a in alerts]
+        st.dataframe(pd.DataFrame(alert_data), use_container_width=True)
+    else:
+        st.write("No notifications dispatched to parent accounts this term.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+# ==================== FACULTY PORTAL ====================
+elif st.session_state.user_role == "Faculty":
+    st.title("👩‍🏫 Faculty Portal")
+    
+    tab1, tab2, tab3 = st.tabs(["📊 Grades & Attendance Input", "📷 OpenCV Face Attendance", "📝 OCR Marks Upload"])
+    
+    with tab1:
+        st.subheader("Student Grades & remarks Management")
+        
+        # Dropdown selection of students
+        student_list = db.query(StudentProfile).all()
+        selected_stud = st.selectbox("Select Student", student_list, format_func=lambda x: f"{x.user.name} ({x.roll_number})")
+        
+        if selected_stud:
+            col1, col2 = st.columns(2)
+            with col1:
+                st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+                st.subheader("Academic Scores")
+                subject = st.selectbox("Subject", ['Mathematics', 'Science', 'English', 'History', 'Computer Science'])
+                
+                # Fetch existing score
+                curr_score = db.query(AcademicMarks).filter(AcademicMarks.student_id == selected_stud.id, AcademicMarks.subject == subject).first()
+                curr_internal = curr_score.internal_marks if curr_score else 15.0
+                curr_assign = curr_score.assignment_scores if curr_score else 10.0
+                curr_exam = curr_score.exam_marks if curr_score else 30.0
+                
+                internal = st.number_input("Internal Marks (out of 30)", min_value=0.0, max_value=30.0, value=curr_internal)
+                assignment = st.number_input("Assignment Scores (out of 20)", min_value=0.0, max_value=20.0, value=curr_assign)
+                exam = st.number_input("Term Exam Marks (out of 50)", min_value=0.0, max_value=50.0, value=curr_exam)
+                
+                if st.button("Save Marks", use_container_width=True):
+                    if curr_score:
+                        curr_score.internal_marks = internal
+                        curr_score.assignment_scores = assignment
+                        curr_score.exam_marks = exam
+                    else:
+                        new_score = AcademicMarks(student_id=selected_stud.id, subject=subject, internal_marks=internal, assignment_scores=assignment, exam_marks=exam)
+                        db.add(new_score)
+                    db.commit()
+                    st.success("Marks saved successfully!")
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+            with col2:
+                st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+                st.subheader("Faculty Remarks & Attendance")
+                
+                # Attendance
+                attendance = st.slider("Class Attendance %", 0.0, 100.0, selected_stud.attendance_pct)
+                if st.button("Update Attendance", use_container_width=True):
+                    selected_stud.attendance_pct = attendance
+                    db.commit()
+                    st.success("Attendance updated!")
+                    
+                # Faculty remarks NLP
+                remark_text = st.text_area("Add Observation Remark")
+                if st.button("Analyze & Save Remark", use_container_width=True):
+                    sentiment_score = analyze_remark_sentiment(remark_text)
+                    new_remark = FacultyRemarks(
+                        student_id=selected_stud.id,
+                        faculty_id=st.session_state.user_id,
+                        remark_text=remark_text,
+                        sentiment_score=sentiment_score
+                    )
+                    db.add(new_remark)
+                    db.commit()
+                    
+                    st.success("Remark recorded!")
+                    st.write(f"Analyzed NLP Sentiment Rating: {sentiment_score:.2f} (Positive: >0.2, Negative: <-0.2)")
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+    with tab2:
+        st.subheader("Automated Face Recognition Attendance Scan")
+        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+        st.write("Scan student classroom images or camera frames to auto-verify presence and update the database.")
+        
+        # File uploader
+        camera_file = st.file_uploader("Upload Classroom Image", type=["jpg", "png", "jpeg"])
+        
+        if st.button("Run Face Scan Attendance", use_container_width=True):
+            manager = FaceAttendanceManager()
+            manager.load_known_faces(db)
+            
+            # Save uploaded image to temp path to run cv2
+            temp_path = os.path.join(BASE_DIR, "data", "known_faces", "temp_scan.jpg")
+            
+            if camera_file:
+                with open(temp_path, "wb") as f:
+                    f.write(camera_file.getbuffer())
+            else:
+                # Mock scanning image
+                temp_img = np.zeros((480, 640, 3), dtype=np.uint8) + 120
+                cv2.imwrite(temp_path, temp_img)
+                
+            detected_names = manager.scan_image_and_mark_attendance(db, temp_path)
+            
+            st.success(f"Scanning complete! Detected and marked present:")
+            st.write(detected_names)
+            
+            # Show image if exists
+            if os.path.exists(temp_path):
+                st.image(temp_path, caption="Scan Grid Output")
+                os.remove(temp_path)
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    with tab3:
+        st.subheader("OCR-Based Table Marks Sheet Upload")
+        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+        st.write("Upload a scanned report card or gradeheet, and the OCR engine will automatically extract the marks table.")
+        
+        target_student = st.selectbox("Upload destination student", student_list, format_func=lambda x: f"{x.user.name} ({x.roll_number})", key="ocr_dest")
+        ocr_file = st.file_uploader("Upload Grade Sheet Scanned Image", type=["jpg", "png", "jpeg"], key="ocr_uploader")
+        
+        if st.button("Extract and Save Table Marks", use_container_width=True):
+            if target_student:
+                temp_path = os.path.join(BASE_DIR, "data", "temp_ocr.png")
+                
+                if ocr_file:
+                    with open(temp_path, "wb") as f:
+                        f.write(ocr_file.getbuffer())
+                else:
+                    # Mock an OCR file
+                    with open(temp_path, "w") as f:
+                        f.write("mock")
+                        
+                uploader = OCRMarksUploader()
+                result = uploader.extract_and_save_marks(db, target_student.id, temp_path)
+                
+                st.success("OCR Table Extraction Complete!")
+                st.json(result)
+                
+                if os.path.exists(temp_path):
+                    os.remove(temp_path)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
+# ==================== HOD PORTAL ====================
+elif st.session_state.user_role == "HOD":
+    st.title("🏛️ Department HOD Analytics Dashboard")
+    
+    # 1. Overview stats
+    student_list = db.query(StudentProfile).all()
+    n_students = len(student_list)
+    avg_dept_attendance = sum(s.attendance_pct for s in student_list) / n_students if n_students else 0.0
+    
+    # Build dataframe for summary
+    data = []
+    for s in student_list:
+        ml = get_student_ml_data(s)
+        pred = predict_student_risk(ml)
+        data.append({
+            "id": s.id,
+            "name": s.user.name,
+            "roll": s.roll_number,
+            "attendance": s.attendance_pct,
+            "internal_avg": ml["internal_marks_avg"],
+            "assignment_completion": ml["assignment_completion_rate"],
+            "overall_academic": ml["overall_academic"],
+            "risk_label": pred["risk_label"],
+            "risk_score": pred["risk_score"]
+        })
+    df = pd.DataFrame(data)
+    
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+        st.metric("Total Students Enrolled", n_students)
+        st.markdown("</div>", unsafe_allow_html=True)
+    with c2:
+        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+        st.metric("Department Average Attendance", f"{avg_dept_attendance:.1f}%")
+        st.markdown("</div>", unsafe_allow_html=True)
+    with c3:
+        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+        high_risk_count = sum(1 for d in data if d["risk_label"] == "High")
+        st.metric("Critical High-Risk Students", high_risk_count)
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    tab1, tab2, tab3 = st.tabs(["🛡️ Risk & Alerts Manager", "📊 Clustering & Performance Groups", "📈 Academic Failure Rates"])
+    
+    with tab1:
+        st.subheader("Department Risk Auditing Panel")
+        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+        st.dataframe(df, use_container_width=True)
+        
+        # Alert trigger
+        st.write("### Broadcast Automated Academic Status Warnings")
+        target_risk = st.selectbox("Select Target Risk Category", ["High", "Medium", "All"])
+        
+        if st.button("Dispatch Automated SMS, WhatsApp & Email Alerts", use_container_width=True):
+            sent_count = 0
+            for student in student_list:
+                ml = get_student_ml_data(student)
+                pred = predict_student_risk(ml)
+                
+                if target_risk != "All" and pred["risk_label"] != target_risk:
+                    continue
+                    
+                parent_email = student.parent.email if student.parent else ""
+                parent_phone = student.parent.phone if student.parent else ""
+                
+                # Fetch weak subjects
+                weak_subs = [m.subject for m in student.marks if (m.internal_marks + m.assignment_scores + (m.exam_marks or 0)) < 40]
+                
+                # Generate AI personalized alert
+                alert_text = generate_personalized_ai_alert(
+                    student.user.name,
+                    student.attendance_pct,
+                    pred["risk_label"],
+                    weak_subs,
+                    pred["risk_score"]
+                )
+                
+                # Dispatch alerts
+                if parent_email:
+                    send_email(db, student.id, parent_email, f"URGENT: Student Academic Warning - {student.user.name}", alert_text)
+                if parent_phone:
+                    sms_summary = f"EduInsight AI Alert: {student.user.name} identified in {pred['risk_label']} Risk zone (Risk Score: {pred['risk_score']:.1f}). Action plan dispatched via email."
+                    send_sms(db, student.id, parent_phone, sms_summary)
+                    send_whatsapp(db, student.id, parent_phone, sms_summary)
+                    
+                sent_count += 1
+                
+            st.success(f"Alert Broadcast Dispatch complete! Distributed alerts to {sent_count} Parent/Student accounts.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    with tab2:
+        st.subheader("Student Academic Clustering Visualizer")
+        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+        
+        if not df.empty:
+            clustered_df = run_student_clustering(df, n_clusters=3)
+            
+            fig = px.scatter(
+                clustered_df,
+                x="attendance",
+                y="overall_academic",
+                color="cluster_name",
+                hover_data=["name", "roll", "risk_score"],
+                title="Department Academic Clusters (Attendance vs Academic Score)",
+                labels={"attendance": "Attendance %", "overall_academic": "Overall Academic Mark (Max 100)"},
+                color_discrete_map={
+                    "High Achievers": "#10B981",
+                    "Average Achievers": "#3B82F6",
+                    "High Risk Group": "#EF4444"
+                }
+            )
+            fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color=plotly_font_color)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("No student records available for clustering.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    with tab3:
+        st.subheader("Subject-wise Performance Analytics")
+        
+        # Load marks to plot subject performance
+        marks_query = db.query(AcademicMarks).all()
+        if marks_query:
+            m_df = pd.DataFrame([{
+                "subject": m.subject,
+                "total": m.internal_marks + m.assignment_scores + (m.exam_marks or 0.0)
+            } for m in marks_query])
+            
+            # Subject average marks
+            avg_sub = m_df.groupby("subject")["total"].mean().reset_index()
+            fig1 = px.bar(avg_sub, x="subject", y="total", title="Average Score by Subject (out of 100)", color_discrete_sequence=['#3B82F6'])
+            fig1.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color=plotly_font_color)
+            
+            # Pass/Fail percentage
+            m_df["status"] = m_df["total"].apply(lambda x: "Pass" if x >= 40 else "Fail")
+            status_df = m_df.groupby(["subject", "status"]).size().reset_index(name="count")
+            
+            fig2 = px.bar(status_df, x="subject", y="count", color="status", title="Pass vs Fail Count by Subject", barmode="group", color_discrete_map={"Pass": "#10B981", "Fail": "#EF4444"})
+            fig2.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color=plotly_font_color)
+            
+            c1, c2 = st.columns(2)
+            with c1:
+                st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+                st.plotly_chart(fig1, use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+            with c2:
+                st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+                st.plotly_chart(fig2, use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            st.warning("No grades recorded for subject analysis.")
+
+db.close()
