@@ -4,16 +4,19 @@ A complete, AI-powered system designed to monitor student academic progress, ide
 
 ## Features
 
-1. **Role-Based Streamlit Dashboard**: Portals for **HODs**, **Faculty**, **Students**, and **Parents** with JWT authorization. Automatically defaults to a premium **Dark Mode** interface after login.
+1. **Role-Based Streamlit Dashboard**: Portals for **HODs**, **Faculty**, **Students**, and **Parents** with JWT authorization. Automatically defaults to a premium **Dark Mode** interface after login. Includes an interactive **Forgot Password** account recovery panel and dynamic navigation buttons to switch between Login and Sign Up screens programmatically.
 2. **AutoML Risk Classifier**: PyCaret-based model training and automated selection of the best-performing model (Decision Tree, Random Forest, XGBoost, SVM, KNN, Logistic Regression) with Scikit-Learn fallback pipelines.
 3. **Explainable AI (XAI)**: SHAP/LIME-inspired explanation systems pinpointing key risk factors (e.g. low attendance, assignment delays).
 4. **FastAPI REST Service**: Clean, documented endpoints for mobile integration (`/students`, `/attendance`, `/marks`, `/prediction`, `/risk`).
 5. **Multi-Channel Alert Engine**: Telegram Bot, Twilio SMS/WhatsApp, and SMTP email dispatch with dynamic AI message templating:
    - **Student & Parent template splits** with custom greetings.
-   - **Deduplication of alerts** when student and parent contact details are identical.
+   - **Emails are deduplicated** if student and parent emails match.
+   - **Phone and Telegram alerts are sent separately** so parents and students always receive their respective warning reports.
    - **Regards closings formatting** overridden globally: `Regards,\nDepartment of [Course Name] and Student Performance Cell` (no HOD names).
 6. **Telegram Bot Integration**:
    - Live Telegram chat routing to custom parent/student Telegram Chat IDs.
+   - **Rich alerts format**: Dispatches full, multi-line performance status reports directly on Telegram instead of a short summary.
+   - **Pacing & Rate Limit Resilience**: Integrates a `0.05`s dispatch pacing interval and a retry sleep mechanism (handling `429 Too Many Requests` API status codes) to ensure 100% broadcast reliability.
    - Telegram Bot Onboarding Banner and connection settings expander placed at the bottom of the Parent Dashboard.
    - Automatic failed message fallback routing to the developer's chat ID (`1688994372`).
 7. **Automation**:
@@ -93,6 +96,36 @@ If you import your custom Excel template using `python import_data.py` (which re
   python run.py --api
   ```
   Navigate to the Swagger documentation at `http://127.0.0.1:8000/docs`.
+
+---
+
+## Data Updates & Storage Architecture
+
+When a faculty member or administrator updates student details (e.g., inputting marks, adjusting attendance percentages, or entering text remarks):
+1. **Database Writes**: The application makes queries using SQLAlchemy sessions ([SessionLocal](file:///C:/Users/Nanda%20Kishore/.gemini/antigravity/scratch/student_performance_monitoring/src/database.py#L67)) and commits changes directly to the configured database.
+2. **Database Resolution**: By default, it updates [student_system.db](file:///C:/Users/Nanda%20Kishore/.gemini/antigravity/scratch/student_performance_monitoring/data/student_system.db). If run on Streamlit Cloud or in a read-only environment, the app uses [get_db_path](file:///C:/Users/Nanda%20Kishore/.gemini/antigravity/scratch/student_performance_monitoring/src/database.py#L14) in [database.py](file:///C:/Users/Nanda%20Kishore/.gemini/antigravity/scratch/student_performance_monitoring/src/database.py) to automatically duplicate the seeded database to a writable location in the server's temporary directory (`/tmp/student_system_[md5].db`) to prevent permission errors.
+3. **Execution Paths**: Data can be updated in two ways:
+   - **Streamlit Faculty Dashboard**: Via the UI input fields, sliders, and buttons in [app.py](file:///C:/Users/Nanda%20Kishore/.gemini/antigravity/scratch/student_performance_monitoring/src/dashboard/app.py).
+   - **REST API Endpoints**: Programmatically via authenticated HTTP requests to the REST server in [main.py](file:///C:/Users/Nanda%20Kishore/.gemini/antigravity/scratch/student_performance_monitoring/src/api/main.py).
+
+---
+
+## REST API Endpoint Reference
+
+The system exposes a secure, JWT-authenticated FastAPI backend for programmatic access. The automatic OpenAPI Swagger UI is available at `http://127.0.0.1:8000/docs`.
+
+### Key Endpoints
+
+| Method | Endpoint | Allowed Roles | Description |
+|---|---|---|---|
+| **POST** | `/api/auth/login` | *All Users* | Authenticate credentials and receive a JWT Bearer Token |
+| **GET** | `/api/students` | *All (Filtered)* | Retrieve student profiles (filtered by the user's role) |
+| **GET** | `/api/marks/{student_id}` | *All (Filtered)* | Retrieve all subject marks for a student |
+| **POST** | `/api/marks` | `Faculty`, `HOD` | Create or update a student's marks |
+| **POST** | `/api/attendance` | `Faculty`, `HOD` | Update attendance percentage for a student |
+| **GET** | `/api/prediction/{student_id}` | *All (Filtered)* | Run ML models to predict risk rating and pass probability |
+| **GET** | `/api/risk/{student_id}/explain` | *All (Filtered)* | Retrieve SHAP/LIME-based explainability factors |
+| **GET** | `/api/reports/pdf/{student_id}` | *All (Filtered)* | Generate and download a professional PDF report card |
 
 ---
 
