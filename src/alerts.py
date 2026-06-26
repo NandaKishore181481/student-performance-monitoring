@@ -82,11 +82,7 @@ def generate_personalized_ai_alert(
         action_part += "1. Maintain the current study schedule.\n"
         action_part += "2. Explore enrichment projects in computer programming or advanced science."
         
-    # Clean up generic placeholder HOD names
-    if hod_name.startswith("HOD - ") or hod_name.startswith("HOD ") or "HOD" in hod_name:
-        hod_name = "Head of Department"
-        
-    closing = f"\n\nRegards,\n{hod_name}\nDepartment of {dept_name}"
+    closing = f"\n\nRegards,\nDepartment of {dept_name} and Student Performance Cell"
     
     return greeting + status + attendance_part + subjects_part + action_part + closing
 
