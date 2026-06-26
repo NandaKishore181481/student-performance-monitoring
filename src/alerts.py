@@ -102,6 +102,41 @@ def send_sms(db: Session, student_id: int, recipient_phone: str, message: str) -
             log_alert_to_db(db, student_id, "SMS", message, "Failed")
             print(f"Twilio SMS delivery failed: {e}")
             return False
+    elif os.getenv("TELEGRAM_BOT_TOKEN", ""):
+        # Telegram Bot integration
+        import requests
+        telegram_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+        telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
+        
+        # Clean phone to check if it's a mock number
+        clean_phone = "".join(filter(str.isdigit, recipient_phone))
+        # If it's a mock phone (starts with 910000) or empty, fall back to TELEGRAM_CHAT_ID
+        chat_id = clean_phone if (clean_phone and not clean_phone.startswith("910000")) else telegram_chat_id
+        
+        if not chat_id:
+            print("Telegram Bot configured, but no valid Chat ID found.")
+            sim_message = f"[SIMULATION - SMS/Telegram to {recipient_phone}]: {message}"
+            log_alert_to_db(db, student_id, "SMS", sim_message, "Sent (Simulated)")
+            return True
+            
+        print(f"Routing SMS alert via Telegram to Chat ID: {chat_id}")
+        url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+        payload = {"chat_id": chat_id, "text": message}
+        
+        try:
+            response = requests.post(url, json=payload, timeout=10)
+            if response.status_code == 200:
+                log_alert_to_db(db, student_id, "SMS", f"Telegram Chat: {chat_id}\nBody: {message}", "Sent (Telegram)")
+                print("Telegram SMS warning successfully delivered.")
+                return True
+            else:
+                print(f"Telegram API delivery failed: {response.text}")
+                log_alert_to_db(db, student_id, "SMS", message, "Failed (Telegram)")
+                return False
+        except Exception as e:
+            print(f"Telegram API post failed: {e}")
+            log_alert_to_db(db, student_id, "SMS", message, "Failed")
+            return False
     elif SMTP_USERNAME and SMTP_PASSWORD and carrier_domain:
         # Clean phone number: remove non-digits (e.g. +919676670515 -> 919676670515)
         clean_phone = "".join(filter(str.isdigit, recipient_phone))
