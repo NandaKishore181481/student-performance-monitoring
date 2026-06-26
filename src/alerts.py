@@ -24,19 +24,31 @@ SMTP_USERNAME = os.getenv("SMTP_USERNAME", "")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "alerts@studentmonitor.edu")
 
-def generate_personalized_ai_alert(student_name: str, attendance: float, risk_label: str, weak_subjects: list, risk_score: float) -> str:
+def generate_personalized_ai_alert(
+    student_name: str, 
+    attendance: float, 
+    risk_label: str, 
+    weak_subjects: list, 
+    risk_score: float,
+    recipient_type: str = "parent",
+    hod_name: str = "Head of Department",
+    dept_name: str = "Student Performance Cell"
+) -> str:
     """
     Generates a highly personalized, context-aware notification message using custom rule-based templates.
+    Supports targeting parents or students with custom closings and actions.
     """
-    greeting = f"Dear Parent, here is an academic status update for your ward, {student_name}.\n\n"
-    
-    # 1. Performance status
-    status = f"Our AI-assisted evaluation has identified {student_name}'s current performance risk as *{risk_label}* (Risk Score: {risk_score:.1f}/100).\n"
+    if recipient_type == "parent":
+        greeting = f"Dear Parent,\n\nHere is an academic status update for your ward, {student_name}.\n\n"
+        status = f"Our AI-assisted evaluation has identified {student_name}'s current performance risk as *{risk_label}* (Risk Score: {risk_score:.1f}/100).\n"
+    else:
+        greeting = f"Dear {student_name},\n\nHere is an update on your academic performance this term.\n\n"
+        status = f"Our AI-assisted evaluation has identified your current performance risk as *{risk_label}* (Risk Score: {risk_score:.1f}/100).\n"
     
     # 2. Attendance alerts
     attendance_part = ""
     if attendance < 75.0:
-        attendance_part = f"- Attendance alert: The class attendance has fallen to {attendance:.1f}%, which is below the minimum threshold of 75%.\n"
+        attendance_part = f"- Attendance alert: Class attendance has fallen to {attendance:.1f}%, which is below the minimum threshold of 75%.\n"
     else:
         attendance_part = f"- Attendance status: Attendance is healthy at {attendance:.1f}%.\n"
         
@@ -51,17 +63,26 @@ def generate_personalized_ai_alert(student_name: str, attendance: float, risk_la
     # 4. Action items
     action_part = "\nRecommended action plan:\n"
     if risk_label == "High":
-        action_part += "1. Schedule a counseling session with the class teacher.\n"
-        action_part += "2. Ensure daily attendance in remedial classes.\n"
-        action_part += "3. Submit all pending assignments by this weekend."
+        if recipient_type == "parent":
+            action_part += "1. Schedule a counseling session with the HOD or class teacher.\n"
+            action_part += "2. Ensure your ward attends remedial classes daily.\n"
+            action_part += "3. Ensure submission of all pending assignments by this weekend."
+        else:
+            action_part += "1. Schedule a counseling session with your HOD or class teacher.\n"
+            action_part += "2. Attend remedial classes daily.\n"
+            action_part += "3. Submit all pending assignments by this weekend."
     elif risk_label == "Medium":
-        action_part += "1. Review weak subjects weekly.\n"
-        action_part += "2. Monitor homework submission timeline."
+        if recipient_type == "parent":
+            action_part += "1. Review weak subjects with your ward weekly.\n"
+            action_part += "2. Monitor homework submission timelines."
+        else:
+            action_part += "1. Review weak subjects weekly.\n"
+            action_part += "2. Ensure all homework is submitted on time."
     else:
         action_part += "1. Maintain the current study schedule.\n"
         action_part += "2. Explore enrichment projects in computer programming or advanced science."
         
-    closing = "\n\nRegards,\nOffice of Dean, Student Performance Cell"
+    closing = f"\n\nRegards,\n{hod_name}\nHOD, Department of {dept_name}"
     
     return greeting + status + attendance_part + subjects_part + action_part + closing
 

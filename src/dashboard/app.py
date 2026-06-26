@@ -1311,20 +1311,46 @@ elif st.session_state.user_role == "HOD":
                 # Fetch weak subjects
                 weak_subs = [m.subject for m in student.marks if (m.internal_marks + m.assignment_scores + (m.exam_marks or 0)) < 40]
                 
-                # Generate AI personalized alert
-                alert_text = generate_personalized_ai_alert(
+                # Dynamic HOD and Department lookup
+                DEPT_MAP = {
+                    "CS": "Computer Science & Engineering",
+                    "ECE": "Electronics & Communication Engineering",
+                    "MECH": "Mechanical Engineering",
+                    "DS": "Data Science",
+                    "AIML": "Artificial Intelligence & Machine Learning"
+                }
+                dept_code = student.class_section.split("-")[0] if (student.class_section and "-" in student.class_section) else "CS"
+                dept_name = DEPT_MAP.get(dept_code, "Computer Science & Engineering")
+                hod_name = st.session_state.name if st.session_state.name else "Head of Department"
+                
+                # Generate custom alerts for student vs parent
+                student_alert_text = generate_personalized_ai_alert(
                     student.user.name,
                     student.attendance_pct,
                     pred["risk_label"],
                     weak_subs,
-                    pred["risk_score"]
+                    pred["risk_score"],
+                    recipient_type="student",
+                    hod_name=hod_name,
+                    dept_name=dept_name
+                )
+                
+                parent_alert_text = generate_personalized_ai_alert(
+                    student.user.name,
+                    student.attendance_pct,
+                    pred["risk_label"],
+                    weak_subs,
+                    pred["risk_score"],
+                    recipient_type="parent",
+                    hod_name=hod_name,
+                    dept_name=dept_name
                 )
                 
                 # Dispatch alerts
                 if student_email:
-                    send_email(db, student.id, student_email, f"URGENT: Academic Status Warning - {student.user.name}", alert_text)
+                    send_email(db, student.id, student_email, f"URGENT: Academic Status Warning - {student.user.name}", student_alert_text)
                 if parent_email:
-                    send_email(db, student.id, parent_email, f"URGENT: Student Academic Warning - {student.user.name}", alert_text)
+                    send_email(db, student.id, parent_email, f"URGENT: Student Academic Warning - {student.user.name}", parent_alert_text)
                 if parent_phone:
                     sms_summary = f"EduInsight AI Alert: {student.user.name} identified in {pred['risk_label']} Risk zone (Risk Score: {pred['risk_score']:.1f}). Action plan dispatched via email."
                     send_sms(db, student.id, parent_phone, sms_summary)
