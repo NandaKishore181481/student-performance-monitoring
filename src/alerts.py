@@ -131,9 +131,15 @@ def send_sms(db: Session, student_id: int, recipient_phone: str, message: str) -
         
         # Clean phone: remove non-digits
         clean_phone = "".join(filter(str.isdigit, recipient_phone))
-        # Fallback to default developer chat ID only if it is a mock GCET number (starts with 910000) or empty.
-        # Otherwise, attempt to send to the parent's actual custom Telegram Chat ID.
-        is_mock = clean_phone.startswith("910000") or not clean_phone
+        # Fallback to default developer chat ID only if it is a mock number (starts with 910000, 900000, 1555, 555) or empty.
+        # Otherwise, attempt to send to the parent/student's actual custom Telegram Chat ID.
+        is_mock = (
+            clean_phone.startswith("910000") or 
+            clean_phone.startswith("900000") or 
+            clean_phone.startswith("1555") or 
+            clean_phone.startswith("555") or 
+            not clean_phone
+        )
         
         chat_id = telegram_chat_id if is_mock else clean_phone
         
@@ -147,16 +153,39 @@ def send_sms(db: Session, student_id: int, recipient_phone: str, message: str) -
         url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
         payload = {"chat_id": chat_id, "text": message}
         
+        import time
+        # Pace requests to avoid hitting Telegram's rate limit (max 30 msgs/sec) when broadcasting
+        time.sleep(0.05)
+        
         try:
             response = requests.post(url, json=payload, timeout=10)
+            # Handle rate-limit retry
+            if response.status_code == 429:
+                try:
+                    retry_after = response.json().get("parameters", {}).get("retry_after", 3)
+                except Exception:
+                    retry_after = 3
+                print(f"Telegram rate limit hit. Retrying after {retry_after} seconds...")
+                time.sleep(retry_after)
+                response = requests.post(url, json=payload, timeout=10)
+
             if response.status_code == 200:
                 log_alert_to_db(db, student_id, "SMS", f"Telegram Chat: {chat_id}\nBody: {message}", "Sent (Telegram)")
                 print("Telegram SMS warning successfully delivered.")
                 return True
             elif chat_id != telegram_chat_id and telegram_chat_id:
-                print(f"Telegram API delivery failed for {chat_id}. Falling back to default developer Chat ID: {telegram_chat_id}")
+                print(f"Telegram API delivery failed for {chat_id} (Code {response.status_code}). Falling back to default developer Chat ID: {telegram_chat_id}")
+                time.sleep(0.05)
                 fallback_payload = {"chat_id": telegram_chat_id, "text": f"[Telegram Fallback from {chat_id}] {message}"}
                 fallback_response = requests.post(url, json=fallback_payload, timeout=10)
+                if fallback_response.status_code == 429:
+                    try:
+                        retry_after = fallback_response.json().get("parameters", {}).get("retry_after", 3)
+                    except Exception:
+                        retry_after = 3
+                    time.sleep(retry_after)
+                    fallback_response = requests.post(url, json=fallback_payload, timeout=10)
+                
                 if fallback_response.status_code == 200:
                     log_alert_to_db(db, student_id, "SMS", f"Telegram Chat: {telegram_chat_id} (Fallback from {chat_id})\nBody: {message}", "Sent (Telegram Fallback)")
                     print("Telegram SMS warning successfully delivered to developer chat ID (fallback).")
