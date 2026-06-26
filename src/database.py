@@ -9,10 +9,14 @@ import bcrypt
 import shutil
 import tempfile
 import sqlite3
+import hashlib
 
 def get_db_path():
     DB_DIR = os.path.dirname(os.path.abspath(__file__))
     local_db_path = os.path.join(os.path.dirname(DB_DIR), "data", "student_system.db")
+    
+    # Generate a unique database name to prevent permission collisions in shared /tmp folders
+    unique_suffix = hashlib.md5(local_db_path.encode('utf-8')).hexdigest()[:12]
     
     # 1. Force /tmp fallback on Streamlit Cloud to prevent write-permission issues
     is_streamlit_cloud = (
@@ -23,7 +27,7 @@ def get_db_path():
     
     if is_streamlit_cloud:
         tmp_dir = tempfile.gettempdir()
-        writable_db_path = os.path.join(tmp_dir, "student_system.db")
+        writable_db_path = os.path.join(tmp_dir, f"student_system_{unique_suffix}.db")
         if not os.path.exists(writable_db_path) and os.path.exists(local_db_path):
             try:
                 shutil.copy2(local_db_path, writable_db_path)
@@ -47,7 +51,7 @@ def get_db_path():
         
     if not test_writable:
         tmp_dir = tempfile.gettempdir()
-        writable_db_path = os.path.join(tmp_dir, "student_system.db")
+        writable_db_path = os.path.join(tmp_dir, f"student_system_{unique_suffix}.db")
         if not os.path.exists(writable_db_path) and os.path.exists(local_db_path):
             try:
                 shutil.copy2(local_db_path, writable_db_path)
