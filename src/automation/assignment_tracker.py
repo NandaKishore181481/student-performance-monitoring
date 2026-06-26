@@ -94,10 +94,6 @@ def check_pending_assignments_and_alert(db: Session) -> int:
         if parent_email and parent_email != student_email:
             send_email(db, student_id, parent_email, "URGENT: Student Assignment Submission Reminders", msg_body)
             
-        # Clean phone numbers for comparison
-        clean_student_phone = "".join(filter(str.isdigit, student_phone))
-        clean_parent_phone = "".join(filter(str.isdigit, parent_phone))
-        
         # 3. SMS / WhatsApp to Student
         if student_phone:
             student_sms_body = f"Assignment Reminder: You have {len(assignments)} pending assignment(s) that require urgent submission. Details sent to your email."
@@ -105,7 +101,7 @@ def check_pending_assignments_and_alert(db: Session) -> int:
             send_whatsapp(db, student_id, student_phone, student_sms_body)
             
         # 4. SMS / WhatsApp to Parent
-        if parent_phone and clean_parent_phone != clean_student_phone:
+        if parent_phone:
             sms_body = f"Assignment Reminder for {student_name}: You have {len(assignments)} pending assignment(s) that require urgent submission. Details sent to your email."
             send_sms(db, student_id, parent_phone, sms_body, full_body=msg_body)
             send_whatsapp(db, student_id, parent_phone, sms_body)
