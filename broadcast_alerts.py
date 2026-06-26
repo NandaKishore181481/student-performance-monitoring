@@ -49,6 +49,7 @@ def broadcast_warnings(target_risk: str):
                 continue
                 
             student_email = student.user.email if student.user else ""
+            student_phone = student.user.phone if (student.user and student.user.phone) else ""
             parent_email = student.parent.email if student.parent else ""
             parent_phone = student.parent.phone if student.parent else ""
             
@@ -100,9 +101,17 @@ def broadcast_warnings(target_risk: str):
                 send_email(db, student.id, student_email, f"URGENT: Academic Status Warning - {student.user.name}", student_alert_text)
             if parent_email and parent_email != student_email:
                 send_email(db, student.id, parent_email, f"URGENT: Student Academic Warning - {student.user.name}", parent_alert_text)
+            
+            # Student phone/Telegram alerts
+            if student_phone:
+                student_sms_summary = f"EduInsight AI Alert: {student.user.name}, you are identified in the {pred['risk_label']} Risk zone (Risk Score: {pred['risk_score']:.1f}). Action plan sent to your email."
+                send_sms(db, student.id, student_phone, student_sms_summary, full_body=student_alert_text)
+                send_whatsapp(db, student.id, student_phone, student_sms_summary)
+                
+            # Parent phone/Telegram alerts
             if parent_phone:
                 sms_summary = f"EduInsight AI Alert: {student.user.name} identified in {pred['risk_label']} Risk zone (Risk Score: {pred['risk_score']:.1f}). Action plan dispatched via email."
-                send_sms(db, student.id, parent_phone, sms_summary)
+                send_sms(db, student.id, parent_phone, sms_summary, full_body=parent_alert_text)
                 send_whatsapp(db, student.id, parent_phone, sms_summary)
                 
             sent_count += 1
