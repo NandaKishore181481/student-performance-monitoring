@@ -8,7 +8,8 @@ import plotly.graph_objects as go
 from datetime import datetime, date
 
 # Ensure root directory is in python path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(BASE_DIR)
 
 from src.database import SessionLocal, User, StudentProfile, AcademicMarks, FacultyRemarks, Assignment, AlertLog, hash_password, verify_password
 from src.ml_models import predict_student_risk, get_explainable_ai, train_and_select_best_model
