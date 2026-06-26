@@ -1454,13 +1454,13 @@ elif st.session_state.user_role == "HOD":
                 # Student phone/Telegram alerts
                 if student_phone:
                     student_sms_summary = f"EduInsight AI Alert: {student.user.name}, you are identified in the {pred['risk_label']} Risk zone (Risk Score: {pred['risk_score']:.1f}). Action plan sent to your email."
-                    send_sms(db, student.id, student_phone, student_sms_summary)
+                    send_sms(db, student.id, student_phone, student_sms_summary, full_body=student_alert_text)
                     send_whatsapp(db, student.id, student_phone, student_sms_summary)
                 
                 # Parent phone/Telegram alerts (only if distinct from student's destination)
                 if parent_phone and clean_parent_phone != clean_student_phone:
                     sms_summary = f"EduInsight AI Alert: {student.user.name} identified in {pred['risk_label']} Risk zone (Risk Score: {pred['risk_score']:.1f}). Action plan dispatched via email."
-                    send_sms(db, student.id, parent_phone, sms_summary)
+                    send_sms(db, student.id, parent_phone, sms_summary, full_body=parent_alert_text)
                     send_whatsapp(db, student.id, parent_phone, sms_summary)
                     
                 sent_count += 1

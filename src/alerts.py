@@ -99,7 +99,7 @@ def log_alert_to_db(db: Session, student_id: int, alert_type: str, message: str,
     db.refresh(log_entry)
     return log_entry
 
-def send_sms(db: Session, student_id: int, recipient_phone: str, message: str) -> bool:
+def send_sms(db: Session, student_id: int, recipient_phone: str, message: str, full_body: str = None) -> bool:
     """
     Sends SMS using Twilio REST API, or falls back to Email-to-SMS Gateway if configured.
     Otherwise, defaults to Simulation Mode.
@@ -143,15 +143,18 @@ def send_sms(db: Session, student_id: int, recipient_phone: str, message: str) -
         
         chat_id = telegram_chat_id if is_mock else clean_phone
         
+        # Use full body for Telegram if provided to make it easy for parents to see the detailed child info
+        tg_message = full_body if full_body else message
+        
         if not chat_id:
             print("Telegram Bot configured, but no valid Chat ID found.")
-            sim_message = f"[SIMULATION - SMS/Telegram to {recipient_phone}]: {message}"
+            sim_message = f"[SIMULATION - SMS/Telegram to {recipient_phone}]: {tg_message}"
             log_alert_to_db(db, student_id, "SMS", sim_message, "Sent (Simulated)")
             return True
             
         print(f"Routing SMS alert via Telegram to Chat ID: {chat_id}")
         url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
-        payload = {"chat_id": chat_id, "text": message}
+        payload = {"chat_id": chat_id, "text": tg_message}
         
         import time
         # Pace requests to avoid hitting Telegram's rate limit (max 30 msgs/sec) when broadcasting
@@ -170,13 +173,13 @@ def send_sms(db: Session, student_id: int, recipient_phone: str, message: str) -
                 response = requests.post(url, json=payload, timeout=10)
 
             if response.status_code == 200:
-                log_alert_to_db(db, student_id, "SMS", f"Telegram Chat: {chat_id}\nBody: {message}", "Sent (Telegram)")
+                log_alert_to_db(db, student_id, "SMS", f"Telegram Chat: {chat_id}\nBody: {tg_message}", "Sent (Telegram)")
                 print("Telegram SMS warning successfully delivered.")
                 return True
             elif chat_id != telegram_chat_id and telegram_chat_id:
                 print(f"Telegram API delivery failed for {chat_id} (Code {response.status_code}). Falling back to default developer Chat ID: {telegram_chat_id}")
                 time.sleep(0.05)
-                fallback_payload = {"chat_id": telegram_chat_id, "text": f"[Telegram Fallback from {chat_id}] {message}"}
+                fallback_payload = {"chat_id": telegram_chat_id, "text": f"[Telegram Fallback from {chat_id}] {tg_message}"}
                 fallback_response = requests.post(url, json=fallback_payload, timeout=10)
                 if fallback_response.status_code == 429:
                     try:
@@ -187,7 +190,7 @@ def send_sms(db: Session, student_id: int, recipient_phone: str, message: str) -
                     fallback_response = requests.post(url, json=fallback_payload, timeout=10)
                 
                 if fallback_response.status_code == 200:
-                    log_alert_to_db(db, student_id, "SMS", f"Telegram Chat: {telegram_chat_id} (Fallback from {chat_id})\nBody: {message}", "Sent (Telegram Fallback)")
+                    log_alert_to_db(db, student_id, "SMS", f"Telegram Chat: {telegram_chat_id} (Fallback from {chat_id})\nBody: {tg_message}", "Sent (Telegram Fallback)")
                     print("Telegram SMS warning successfully delivered to developer chat ID (fallback).")
                     return True
             

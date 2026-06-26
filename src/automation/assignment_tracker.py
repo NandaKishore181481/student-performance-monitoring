@@ -101,13 +101,13 @@ def check_pending_assignments_and_alert(db: Session) -> int:
         # 3. SMS / WhatsApp to Student
         if student_phone:
             student_sms_body = f"Assignment Reminder: You have {len(assignments)} pending assignment(s) that require urgent submission. Details sent to your email."
-            send_sms(db, student_id, student_phone, student_sms_body)
+            send_sms(db, student_id, student_phone, student_sms_body, full_body=student_msg_body)
             send_whatsapp(db, student_id, student_phone, student_sms_body)
             
         # 4. SMS / WhatsApp to Parent
         if parent_phone and clean_parent_phone != clean_student_phone:
             sms_body = f"Assignment Reminder for {student_name}: You have {len(assignments)} pending assignment(s) that require urgent submission. Details sent to your email."
-            send_sms(db, student_id, parent_phone, sms_body)
+            send_sms(db, student_id, parent_phone, sms_body, full_body=msg_body)
             send_whatsapp(db, student_id, parent_phone, sms_body)
             
         reminders_sent += 1
