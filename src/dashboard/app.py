@@ -30,7 +30,7 @@ st.set_page_config(
 
 # Theme Choice Selection
 if "theme_mode" not in st.session_state:
-    st.session_state.theme_mode = "☀️ Light Mode"
+    st.session_state.theme_mode = "🌙 Dark Mode"
 
 # Sidebar selector for theme
 st.sidebar.markdown("### 🎨 Interface Theme")

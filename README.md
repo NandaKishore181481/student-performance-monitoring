@@ -4,16 +4,24 @@ A complete, AI-powered system designed to monitor student academic progress, ide
 
 ## Features
 
-1. **Role-Based Streamlit Dashboard**: Portals for **HODs**, **Faculty**, **Students**, and **Parents** with JWT authorization.
+1. **Role-Based Streamlit Dashboard**: Portals for **HODs**, **Faculty**, **Students**, and **Parents** with JWT authorization. Automatically defaults to a premium **Dark Mode** interface after login.
 2. **AutoML Risk Classifier**: PyCaret-based model training and automated selection of the best-performing model (Decision Tree, Random Forest, XGBoost, SVM, KNN, Logistic Regression) with Scikit-Learn fallback pipelines.
 3. **Explainable AI (XAI)**: SHAP/LIME-inspired explanation systems pinpointing key risk factors (e.g. low attendance, assignment delays).
 4. **FastAPI REST Service**: Clean, documented endpoints for mobile integration (`/students`, `/attendance`, `/marks`, `/prediction`, `/risk`).
-5. **Multi-Channel Alert Engine**: Twilio SMS/WhatsApp integration and SMTP email dispatch with dynamic AI message templating.
-6. **Automation**:
+5. **Multi-Channel Alert Engine**: Telegram Bot, Twilio SMS/WhatsApp, and SMTP email dispatch with dynamic AI message templating:
+   - **Student & Parent template splits** with custom greetings.
+   - **Deduplication of alerts** when student and parent contact details are identical.
+   - **Regards closings formatting** overridden globally: `Regards,\nDepartment of [Course Name] and Student Performance Cell` (no HOD names).
+6. **Telegram Bot Integration**:
+   - Live Telegram chat routing to custom parent/student Telegram Chat IDs.
+   - Telegram Bot Onboarding Banner and connection settings expander placed at the bottom of the Parent Dashboard.
+   - Automatic failed message fallback routing to the developer's chat ID (`1688994372`).
+7. **Automation**:
    - OpenCV-based Haar Cascade Face Recognition for marking attendance.
    - OCR-based tabular grade sheets scanning (EasyOCR/Tesseract fallbacks).
-   - Automated Overdue Assignment Tracker.
-7. **Professional PDF Reports**: Auto-generated report cards using ReportLab.
+   - Automated Overdue Assignment Tracker (dispatches reminders to both student and parent).
+8. **Professional PDF Reports**: Auto-generated report cards using ReportLab.
+9. **Streamlit Cloud Permission Fallbacks**: Automatic database replication to `/tmp/student_system_[md5].db` if the default project folder is read-only (Streamlit Cloud containers).
 
 ---
 
@@ -84,20 +92,25 @@ This seeds the following default accounts:
 
 ## Credentials Configuration (Alerts)
 
-To enable live notifications, configure the environment variables before running:
+To enable live notifications, configure the environment variables or Streamlit Cloud Secrets before running:
 ```env
-# Twilio Configuration
+# Twilio Configuration (Optional, falls back to Telegram / SMTP carrier gateways)
 export TWILIO_ACCOUNT_SID="your_twilio_sid"
 export TWILIO_AUTH_TOKEN="your_twilio_auth_token"
 export TWILIO_PHONE_NUMBER="your_twilio_phone_number"
 
+# Telegram Bot Alert Configuration
+export TELEGRAM_BOT_TOKEN="8012759867:AAH3yR1pNsd8THXhZ2vnKzNnLONIAA2erE4"
+export TELEGRAM_CHAT_ID="1688994372"  # Fallback/developer chat ID for testing
+
 # SMTP Email Configuration
-export SMTP_USERNAME="your_email@gmail.com"
-export SMTP_PASSWORD="your_app_password"
+export SMTP_USERNAME="nani181481@gmail.com"
+export SMTP_PASSWORD="bkdzvapzcgwepsgj"
 export SMTP_SERVER="smtp.gmail.com"
 export SMTP_PORT="587"
+export SENDER_EMAIL="nani181481@gmail.com"
 ```
-*Note: If these settings are not configured, the system operates in **Simulation Mode**, logging the simulated alerts and database logs instantly so you can test all alert channels without credentials.*
+*Note: If these settings are not configured, the system operates in **Simulation Mode**, logging the simulated alerts and database logs instantly so you can test all alert channels without credentials. If Telegram credentials are provided, messages route to the parent/student's configured Telegram Chat ID, automatically falling back to the developer's default `TELEGRAM_CHAT_ID` if delivery fails (e.g. invalid chat ID, or user has not started the bot).*
 
 ---
 
