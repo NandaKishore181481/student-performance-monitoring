@@ -8,19 +8,39 @@ import bcrypt
 # Database configuration
 import shutil
 import tempfile
+import sqlite3
 
 def get_db_path():
     DB_DIR = os.path.dirname(os.path.abspath(__file__))
     local_db_path = os.path.join(os.path.dirname(DB_DIR), "data", "student_system.db")
     
-    # Test if the local directory is writable
+    # 1. Force /tmp fallback on Streamlit Cloud to prevent write-permission issues
+    is_streamlit_cloud = (
+        "STREAMLIT_SHARING_AUTHOR" in os.environ or 
+        "STREAMLIT_RUNTIME" in os.environ or
+        "mount/src" in __file__.replace("\\", "/")
+    )
+    
+    if is_streamlit_cloud:
+        tmp_dir = tempfile.gettempdir()
+        writable_db_path = os.path.join(tmp_dir, "student_system.db")
+        if not os.path.exists(writable_db_path) and os.path.exists(local_db_path):
+            try:
+                shutil.copy2(local_db_path, writable_db_path)
+            except Exception:
+                pass
+        return writable_db_path
+        
+    # 2. Strict SQLite write-capability check for other environments
     test_writable = False
     try:
         os.makedirs(os.path.dirname(local_db_path), exist_ok=True)
-        test_file = os.path.join(os.path.dirname(local_db_path), ".write_test")
-        with open(test_file, "w") as f:
-            f.write("test")
-        os.remove(test_file)
+        conn = sqlite3.connect(local_db_path)
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS _write_test (id INTEGER)")
+        cursor.execute("DROP TABLE _write_test")
+        conn.commit()
+        conn.close()
         test_writable = True
     except Exception:
         test_writable = False
@@ -28,7 +48,6 @@ def get_db_path():
     if not test_writable:
         tmp_dir = tempfile.gettempdir()
         writable_db_path = os.path.join(tmp_dir, "student_system.db")
-        # Copy the pre-seeded database if it exists locally but not in tmp yet
         if not os.path.exists(writable_db_path) and os.path.exists(local_db_path):
             try:
                 shutil.copy2(local_db_path, writable_db_path)
