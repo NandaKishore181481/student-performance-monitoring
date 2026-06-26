@@ -6,10 +6,38 @@ from sqlalchemy.orm import sessionmaker, relationship
 import bcrypt
 
 # Database configuration
-DB_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(os.path.dirname(DB_DIR), "data", "student_system.db")
-os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+import shutil
+import tempfile
 
+def get_db_path():
+    DB_DIR = os.path.dirname(os.path.abspath(__file__))
+    local_db_path = os.path.join(os.path.dirname(DB_DIR), "data", "student_system.db")
+    
+    # Test if the local directory is writable
+    test_writable = False
+    try:
+        os.makedirs(os.path.dirname(local_db_path), exist_ok=True)
+        test_file = os.path.join(os.path.dirname(local_db_path), ".write_test")
+        with open(test_file, "w") as f:
+            f.write("test")
+        os.remove(test_file)
+        test_writable = True
+    except Exception:
+        test_writable = False
+        
+    if not test_writable:
+        tmp_dir = tempfile.gettempdir()
+        writable_db_path = os.path.join(tmp_dir, "student_system.db")
+        # Copy the pre-seeded database if it exists locally but not in tmp yet
+        if not os.path.exists(writable_db_path) and os.path.exists(local_db_path):
+            try:
+                shutil.copy2(local_db_path, writable_db_path)
+            except Exception:
+                pass
+        return writable_db_path
+    return local_db_path
+
+DB_PATH = get_db_path()
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
