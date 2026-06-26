@@ -68,11 +68,17 @@ Run the orchestrator script to automatically seed the database and train the ML 
 ```bash
 python run.py
 ```
-This seeds the following default accounts:
+This seeds the following default accounts (Demo Mode):
 * **HOD**: username `hod` | password `hod123`
 * **Faculty**: username `faculty1` | password `fac123`
 * **Student**: username `student1` | password `student123`
 * **Parent**: username `parent1` | password `parent123`
+
+If you import your custom Excel template using `python import_data.py` (which replaces demo data), credentials will match your spreadsheet rows:
+* **HOD**: username `hod_cs` (or other department HOD codes) | password `hod123` (auto-assigned for HODs)
+* **Faculty**: username `cs_prof_ramesh` (as set in Staff sheet) | password `cs123` (as set in Staff sheet)
+* **Student**: username `cs_john_2024` (as set in Students sheet) | password `23r11a6201` (as set in Students sheet)
+* **Parent**: username `parent_cs_john_2024` (prefixed with `parent_` + student username) | password `parent123` (auto-assigned for parents)
 
 ### 3. Launch Services
 
