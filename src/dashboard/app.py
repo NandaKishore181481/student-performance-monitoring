@@ -580,10 +580,20 @@ def auth_page():
             st.markdown("</div>", unsafe_allow_html=True)
             return
 
-        login_tab, signup_tab = st.tabs(["🔑 Login", "📝 Sign Up"])
-        
-        # ────────── LOGIN TAB ──────────
-        with login_tab:
+        # Custom Tabs using side-by-side buttons
+        c_login_toggle, c_signup_toggle = st.columns(2)
+        with c_login_toggle:
+            is_login = (st.session_state.get("auth_tab", "Login") == "Login")
+            if st.button("🔑 Login", type="primary" if is_login else "secondary", use_container_width=True, key="tab_login_btn"):
+                st.session_state.auth_tab = "Login"
+                st.rerun()
+        with c_signup_toggle:
+            is_signup = (st.session_state.get("auth_tab", "Login") == "Sign Up")
+            if st.button("📝 Sign Up", type="primary" if is_signup else "secondary", use_container_width=True, key="tab_signup_btn"):
+                st.session_state.auth_tab = "Sign Up"
+                st.rerun()
+
+        if st.session_state.get("auth_tab", "Login") == "Login":
             st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
             st.subheader("Welcome Back")
             login_method = st.radio("Login with", ["Username", "Email"], horizontal=True, key="login_method")
@@ -627,132 +637,142 @@ def auth_page():
                         st.error("Invalid credentials. Please check and try again.")
             
             # Sign Up Link below the form
-            st.markdown("<div style='text-align: center; margin-top: 15px; font-size: 0.9rem; color: #94A3B8;'>Don't have an account? <span style='color: #3B82F6; font-weight: 600;'>Sign Up above</span></div>", unsafe_allow_html=True)
+            st.markdown("<div style='text-align: center; margin-top: 15px;'>", unsafe_allow_html=True)
+            if st.button("Don't have an account? Sign Up", key="link_to_signup", use_container_width=True):
+                st.session_state.auth_tab = "Sign Up"
+                st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+            return
+
+        # ────────── SIGN UP VIEW ──────────
+        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+        st.subheader("Create New Account")
         
-        # ────────── SIGN UP TAB ──────────
-        with signup_tab:
-            st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
-            st.subheader("Create New Account")
+        su_role = st.selectbox("I am a", ["Student", "Faculty", "Parent", "HOD"], key="su_role")
+        
+        su_col1, su_col2 = st.columns(2)
+        with su_col1:
+            su_fullname = st.text_input("Full Name *", key="su_name")
+            su_username = st.text_input("Username *", key="su_user", help="Unique login ID — no spaces")
+        with su_col2:
+            su_email = st.text_input("Email *", key="su_email")
+            su_phone = st.text_input("Phone / Telegram Chat ID", key="su_phone", help="Enter your numeric Telegram Chat ID (e.g. 1688994372) to receive free messages via Telegram")
+        
+        su_pass = st.text_input("Password *", type="password", key="su_pass")
+        su_pass2 = st.text_input("Confirm Password *", type="password", key="su_pass2")
+        
+        # ── Student-specific fields ──
+        if su_role == "Student":
+            st.markdown("---")
+            st.markdown("**📋 Student Details**")
+            sc1, sc2, sc3, sc4 = st.columns(4)
+            with sc1:
+                su_roll = st.text_input("Roll Number *", key="su_roll")
+            with sc2:
+                su_dept = st.text_input("Department Code", key="su_dept", help="e.g. CS, ECE, MECH")
+            with sc3:
+                su_year = st.selectbox("Year", [1, 2, 3, 4], key="su_year")
+            with sc4:
+                su_section = st.text_input("Section", value="A", key="su_section")
+        
+        # ── Parent-specific fields ──
+        if su_role == "Parent":
+            st.markdown("---")
+            st.markdown("**🔗 Link to Student**")
+            su_child_roll = st.text_input("Your Child's Roll Number *", key="su_child_roll", help="Must match an existing student roll number")
+        
+        st.markdown("")
+        if st.button("Create Account", use_container_width=True, type="primary", key="btn_signup"):
+            # ── Validation ──
+            errors = []
+            if not su_fullname:
+                errors.append("Full Name is required.")
+            if not su_username:
+                errors.append("Username is required.")
+            elif " " in su_username:
+                errors.append("Username cannot contain spaces.")
+            if not su_email:
+                errors.append("Email is required.")
+            if not su_pass:
+                errors.append("Password is required.")
+            elif len(su_pass) < 4:
+                errors.append("Password must be at least 4 characters.")
+            if su_pass != su_pass2:
+                errors.append("Passwords do not match.")
             
-            su_role = st.selectbox("I am a", ["Student", "Faculty", "Parent", "HOD"], key="su_role")
+            # Check username uniqueness
+            if su_username and db.query(User).filter(User.username == su_username).first():
+                errors.append(f"Username '{su_username}' is already taken.")
+            # Check email uniqueness
+            if su_email and db.query(User).filter(User.email == su_email).first():
+                errors.append(f"Email '{su_email}' is already registered.")
             
-            su_col1, su_col2 = st.columns(2)
-            with su_col1:
-                su_fullname = st.text_input("Full Name *", key="su_name")
-                su_username = st.text_input("Username *", key="su_user", help="Unique login ID — no spaces")
-            with su_col2:
-                su_email = st.text_input("Email *", key="su_email")
-                su_phone = st.text_input("Phone / Telegram Chat ID", key="su_phone", help="Enter your numeric Telegram Chat ID (e.g. 1688994372) to receive free messages via Telegram")
-            
-            su_pass = st.text_input("Password *", type="password", key="su_pass")
-            su_pass2 = st.text_input("Confirm Password *", type="password", key="su_pass2")
-            
-            # ── Student-specific fields ──
+            # Student-specific validation
             if su_role == "Student":
-                st.markdown("---")
-                st.markdown("**📋 Student Details**")
-                sc1, sc2, sc3, sc4 = st.columns(4)
-                with sc1:
-                    su_roll = st.text_input("Roll Number *", key="su_roll")
-                with sc2:
-                    su_dept = st.text_input("Department Code", key="su_dept", help="e.g. CS, ECE, MECH")
-                with sc3:
-                    su_year = st.selectbox("Year", [1, 2, 3, 4], key="su_year")
-                with sc4:
-                    su_section = st.text_input("Section", value="A", key="su_section")
+                if not su_roll:
+                    errors.append("Roll Number is required for students.")
+                elif db.query(StudentProfile).filter(StudentProfile.roll_number == su_roll).first():
+                    errors.append(f"Roll Number '{su_roll}' already exists.")
             
-            # ── Parent-specific fields ──
+            # Parent-specific validation
             if su_role == "Parent":
-                st.markdown("---")
-                st.markdown("**🔗 Link to Student**")
-                su_child_roll = st.text_input("Your Child's Roll Number *", key="su_child_roll", help="Must match an existing student roll number")
-            
-            st.markdown("")
-            if st.button("Create Account", use_container_width=True, type="primary", key="btn_signup"):
-                # ── Validation ──
-                errors = []
-                if not su_fullname:
-                    errors.append("Full Name is required.")
-                if not su_username:
-                    errors.append("Username is required.")
-                elif " " in su_username:
-                    errors.append("Username cannot contain spaces.")
-                if not su_email:
-                    errors.append("Email is required.")
-                if not su_pass:
-                    errors.append("Password is required.")
-                elif len(su_pass) < 4:
-                    errors.append("Password must be at least 4 characters.")
-                if su_pass != su_pass2:
-                    errors.append("Passwords do not match.")
-                
-                # Check username uniqueness
-                if su_username and db.query(User).filter(User.username == su_username).first():
-                    errors.append(f"Username '{su_username}' is already taken.")
-                # Check email uniqueness
-                if su_email and db.query(User).filter(User.email == su_email).first():
-                    errors.append(f"Email '{su_email}' is already registered.")
-                
-                # Student-specific validation
-                if su_role == "Student":
-                    if not su_roll:
-                        errors.append("Roll Number is required for students.")
-                    elif db.query(StudentProfile).filter(StudentProfile.roll_number == su_roll).first():
-                        errors.append(f"Roll Number '{su_roll}' already exists.")
-                
-                # Parent-specific validation
-                if su_role == "Parent":
-                    if not su_child_roll:
-                        errors.append("Your child's Roll Number is required.")
-                    else:
-                        child_profile = db.query(StudentProfile).filter(StudentProfile.roll_number == su_child_roll).first()
-                        if not child_profile:
-                            errors.append(f"No student found with Roll Number '{su_child_roll}'.")
-                
-                if errors:
-                    for e in errors:
-                        st.error(e)
+                if not su_child_roll:
+                    errors.append("Your child's Roll Number is required.")
                 else:
-                    try:
-                        # Create the User
-                        new_user = User(
-                            username=su_username,
-                            hashed_password=hash_password(su_pass),
-                            role=su_role,
-                            name=su_fullname,
-                            email=su_email,
-                            phone=su_phone or ""
-                        )
-                        db.add(new_user)
-                        db.flush()
-                        
-                        # Create StudentProfile if Student
-                        if su_role == "Student":
-                            dept = su_dept.strip().upper() if su_dept else ""
-                            class_section = f"{dept}-Y{su_year}{su_section}" if dept else f"Y{su_year}{su_section}"
-                            profile = StudentProfile(
-                                user_id=new_user.id,
-                                roll_number=su_roll,
-                                class_section=class_section,
-                                attendance_pct=0.0
-                            )
-                            db.add(profile)
-                        
-                        # Link Parent to existing student
-                        if su_role == "Parent":
-                            child_profile = db.query(StudentProfile).filter(StudentProfile.roll_number == su_child_roll).first()
-                            if child_profile:
-                                child_profile.parent_id = new_user.id
-                        
-                        db.commit()
-                        st.success(f"✅ Account created successfully! You can now log in with username: **{su_username}**")
-                        st.balloons()
-                    except Exception as ex:
-                        db.rollback()
-                        st.error(f"Registration failed: {ex}")
+                    child_profile = db.query(StudentProfile).filter(StudentProfile.roll_number == su_child_roll).first()
+                    if not child_profile:
+                        errors.append(f"No student found with Roll Number '{su_child_roll}'.")
             
-            st.markdown("</div>", unsafe_allow_html=True)
+            if errors:
+                for e in errors:
+                    st.error(e)
+            else:
+                try:
+                    # Create the User
+                    new_user = User(
+                        username=su_username,
+                        hashed_password=hash_password(su_pass),
+                        role=su_role,
+                        name=su_fullname,
+                        email=su_email,
+                        phone=su_phone or ""
+                    )
+                    db.add(new_user)
+                    db.flush()
+                    
+                    # Create StudentProfile if Student
+                    if su_role == "Student":
+                        dept = su_dept.strip().upper() if su_dept else ""
+                        class_section = f"{dept}-Y{su_year}{su_section}" if dept else f"Y{su_year}{su_section}"
+                        profile = StudentProfile(
+                            user_id=new_user.id,
+                            roll_number=su_roll,
+                            class_section=class_section,
+                            attendance_pct=0.0
+                        )
+                        db.add(profile)
+                    
+                    # Link Parent to existing student
+                    if su_role == "Parent":
+                        child_profile = db.query(StudentProfile).filter(StudentProfile.roll_number == su_child_roll).first()
+                        if child_profile:
+                            child_profile.parent_id = new_user.id
+                    
+                    db.commit()
+                    st.success(f"✅ Account created successfully! You can now log in with username: **{su_username}**")
+                    st.balloons()
+                except Exception as ex:
+                    db.rollback()
+                    st.error(f"Registration failed: {ex}")
+        
+        # Log In Link below the form
+        st.markdown("<div style='text-align: center; margin-top: 15px;'>", unsafe_allow_html=True)
+        if st.button("Already have an account? Log In", key="link_to_login", use_container_width=True):
+            st.session_state.auth_tab = "Login"
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 if not st.session_state.authenticated:
     st.markdown("""
