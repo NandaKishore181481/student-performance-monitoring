@@ -1271,7 +1271,7 @@ elif st.session_state.user_role == "HOD":
         
         # Alert trigger
         st.write("### Broadcast Automated Academic Status Warnings")
-        target_risk = st.selectbox("Select Target Risk Category", ["High", "Medium", "All"])
+        target_risk = st.selectbox("Select Target Risk Category", ["High", "Medium", "Low", "All"])
         
         if st.button("Dispatch Automated SMS, WhatsApp & Email Alerts", use_container_width=True):
             sent_count = 0
