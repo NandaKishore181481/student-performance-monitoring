@@ -545,6 +545,41 @@ def auth_page():
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
+        if st.session_state.get("forgot_password_mode", False):
+            st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+            st.subheader("Reset Password")
+            st.markdown("<p class='text-muted' style='font-size: 0.85rem;'>Provide your registered username and email to securely set a new password.</p>", unsafe_allow_html=True)
+            reset_username = st.text_input("👤 Username", key="reset_username")
+            reset_email = st.text_input("📧 Registered Email Address", key="reset_email")
+            new_pwd = st.text_input("🔒 New Password", type="password", key="reset_new_pwd")
+            new_pwd_confirm = st.text_input("🔒 Confirm New Password", type="password", key="reset_new_pwd_confirm")
+            
+            c_res_btn, c_back_btn = st.columns(2)
+            with c_res_btn:
+                if st.button("Reset Password", use_container_width=True, type="primary"):
+                    if not reset_username or not reset_email or not new_pwd:
+                        st.warning("Please fill in all fields.")
+                    elif new_pwd != new_pwd_confirm:
+                        st.error("New passwords do not match.")
+                    elif len(new_pwd) < 4:
+                        st.error("Password must be at least 4 characters.")
+                    else:
+                        user = db.query(User).filter(User.username == reset_username, User.email == reset_email).first()
+                        if user:
+                            user.hashed_password = hash_password(new_pwd)
+                            db.commit()
+                            st.success("✅ Password updated successfully! Please log in with your new password.")
+                            st.session_state.forgot_password_mode = False
+                            st.rerun()
+                        else:
+                            st.error("User with specified Username and Registered Email not found.")
+            with c_back_btn:
+                if st.button("Back to Login", use_container_width=True):
+                    st.session_state.forgot_password_mode = False
+                    st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+            return
+
         login_tab, signup_tab = st.tabs(["🔑 Login", "📝 Sign Up"])
         
         # ────────── LOGIN TAB ──────────
@@ -565,7 +600,9 @@ def auth_page():
             with c_rem:
                 remember_me = st.checkbox("Remember Me", value=True, key="remember_me")
             with c_forg:
-                st.markdown("<div style='text-align: right; padding-top: 4px;'><a href='#' class='forgot-link'>Forgot Password?</a></div>", unsafe_allow_html=True)
+                if st.button("Forgot Password?", key="btn_forgot_trigger", use_container_width=True):
+                    st.session_state.forgot_password_mode = True
+                    st.rerun()
             
             st.markdown("<br/>", unsafe_allow_html=True)
             if st.button("Log In", use_container_width=True, key="btn_login"):
