@@ -928,6 +928,28 @@ if st.sidebar.button("Logout", use_container_width=True):
     st.rerun()
 
 st.sidebar.markdown("---")
+st.sidebar.markdown("### 🗄️ Database Status")
+from src.database import DB_PATH
+import sqlite3
+
+# Test if database is writable from app.py
+db_writable = False
+try:
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("CREATE TABLE IF NOT EXISTS _write_test_app (id INTEGER)")
+    cursor.execute("DROP TABLE _write_test_app")
+    conn.commit()
+    conn.close()
+    db_writable = True
+except Exception:
+    db_writable = False
+
+status_emoji = "🟢 Writable" if db_writable else "🔴 Read-Only"
+st.sidebar.markdown(f"**Path:** `{DB_PATH}`")
+st.sidebar.markdown(f"**Status:** {status_emoji}")
+
+st.sidebar.markdown("---")
 
 # --- PORTALS ORCHESTRATION ---
 
