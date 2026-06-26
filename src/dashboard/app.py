@@ -606,7 +606,7 @@ def auth_page():
                 su_username = st.text_input("Username *", key="su_user", help="Unique login ID — no spaces")
             with su_col2:
                 su_email = st.text_input("Email *", key="su_email")
-                su_phone = st.text_input("Phone", key="su_phone")
+                su_phone = st.text_input("Phone / Telegram Chat ID", key="su_phone", help="Enter your numeric Telegram Chat ID (e.g. 1688994372) to receive free messages via Telegram")
             
             su_pass = st.text_input("Password *", type="password", key="su_pass")
             su_pass2 = st.text_input("Confirm Password *", type="password", key="su_pass2")
@@ -1093,6 +1093,30 @@ elif st.session_state.user_role == "Parent":
     </div>
     """, unsafe_allow_html=True)
     
+    # Configure Telegram settings card
+    with st.expander("⚙️ Configure your Telegram Alerts Connection"):
+        st.markdown("""
+        To connect your account to our Telegram bot:
+        1. Click the **Start Telegram Bot** button above (tap **Start** in Telegram).
+        2. Get your unique numeric **Chat ID** (find it by sending a message to `@userinfobot` on Telegram).
+        3. Paste your Chat ID below and click **Save Connection Settings**.
+        """)
+        parent_phone = student_profile.parent.phone if (student_profile.parent and student_profile.parent.phone) else ""
+        default_chat_id = parent_phone if (parent_phone and not parent_phone.startswith("910000")) else ""
+        new_chat_id = st.text_input("Enter your Telegram Chat ID", value=default_chat_id, placeholder="e.g. 1688994372", key="parent_tg_chat_id")
+        
+        if st.button("Save Connection Settings", use_container_width=True, key="btn_save_tg_chat_id"):
+            if new_chat_id:
+                # Save to database
+                parent_user = db.query(User).filter(User.id == student_profile.parent_id).first()
+                if parent_user:
+                    parent_user.phone = new_chat_id
+                    db.commit()
+                    st.success("✅ Telegram Chat ID updated successfully! You will now receive alerts directly here.")
+                    st.rerun()
+            else:
+                st.warning("Please enter a valid Chat ID.")
+                
     c1, c2 = st.columns(2)
     with c1:
         st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
