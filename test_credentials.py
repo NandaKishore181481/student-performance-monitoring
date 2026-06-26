@@ -15,7 +15,7 @@ except ImportError:
 from src.database import SessionLocal
 from src.alerts import send_email, send_sms
 
-def test_config(email_recipient=None, phone_recipient=None):
+def test_config(email_recipient=None, phone_recipient=None, test_telegram=False):
     db = SessionLocal()
     
     print("\n" + "="*50)
