@@ -80,9 +80,12 @@ def log_alert_to_db(db: Session, student_id: int, alert_type: str, message: str,
 
 def send_sms(db: Session, student_id: int, recipient_phone: str, message: str) -> bool:
     """
-    Sends SMS using Twilio REST API. Falls back to Simulation Log mode if credentials are not configured.
+    Sends SMS using Twilio REST API, or falls back to Email-to-SMS Gateway if configured.
+    Otherwise, defaults to Simulation Mode.
     """
     print(f"[{student_id}] Attempting SMS send to {recipient_phone}...")
+    
+    carrier_domain = os.getenv("CARRIER_GATEWAY_DOMAIN", "")
     
     if TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_PHONE_NUMBER:
         try:
@@ -99,11 +102,24 @@ def send_sms(db: Session, student_id: int, recipient_phone: str, message: str) -
             log_alert_to_db(db, student_id, "SMS", message, "Failed")
             print(f"Twilio SMS delivery failed: {e}")
             return False
+    elif SMTP_USERNAME and SMTP_PASSWORD and carrier_domain:
+        # Clean phone number: remove non-digits (e.g. +919676670515 -> 919676670515)
+        clean_phone = "".join(filter(str.isdigit, recipient_phone))
+        gateway_email = f"{clean_phone}@{carrier_domain}"
+        print(f"Routing SMS for free via Email-to-SMS Gateway: {gateway_email}")
+        
+        # Dispatch SMS content as a clean email to the gateway
+        success = send_email(db, student_id, gateway_email, "Academic Status Alert", message)
+        if success:
+            # Overwrite logged alert type to SMS
+            log_alert_to_db(db, student_id, "SMS", f"Routed via gateway: {gateway_email}\nBody: {message}", "Sent (Gateway)")
+            return True
+        return False
     else:
         # Simulation Mode
         sim_message = f"[SIMULATION - SMS to {recipient_phone}]: {message}"
         log_alert_to_db(db, student_id, "SMS", sim_message, "Sent (Simulated)")
-        print(f"Twilio SMS credentials empty. {sim_message}")
+        print(f"Twilio SMS & Carrier Gateway credentials empty. {sim_message}")
         return True
 
 def send_whatsapp(db: Session, student_id: int, recipient_phone: str, message: str) -> bool:
