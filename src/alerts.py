@@ -129,10 +129,14 @@ def send_sms(db: Session, student_id: int, recipient_phone: str, message: str) -
         telegram_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
         telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
         
-        # Clean phone to check if it's a mock number
+        # Clean phone to check if it's a mock number or a regular phone number
         clean_phone = "".join(filter(str.isdigit, recipient_phone))
-        # If it's a mock phone (starts with 910000) or empty, fall back to TELEGRAM_CHAT_ID
-        chat_id = clean_phone if (clean_phone and not clean_phone.startswith("910000")) else telegram_chat_id
+        # Phone numbers are typically 10 or 12 digits (unlike Telegram Chat IDs which are custom).
+        # We redirect any phone number (starts with 910000 or is 10/11/12 digits) to the developer's chat ID for testing.
+        is_phone = len(clean_phone) in [10, 11, 12] and (clean_phone.startswith("91") or clean_phone.startswith("0") or len(clean_phone) == 10)
+        is_mock = clean_phone.startswith("910000")
+        
+        chat_id = clean_phone if (clean_phone and not is_phone and not is_mock) else telegram_chat_id
         
         if not chat_id:
             print("Telegram Bot configured, but no valid Chat ID found.")

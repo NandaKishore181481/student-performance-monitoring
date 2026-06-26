@@ -98,7 +98,7 @@ def broadcast_warnings(target_risk: str):
             # Dispatch alerts
             if student_email:
                 send_email(db, student.id, student_email, f"URGENT: Academic Status Warning - {student.user.name}", student_alert_text)
-            if parent_email:
+            if parent_email and parent_email != student_email:
                 send_email(db, student.id, parent_email, f"URGENT: Student Academic Warning - {student.user.name}", parent_alert_text)
             if parent_phone:
                 sms_summary = f"EduInsight AI Alert: {student.user.name} identified in {pred['risk_label']} Risk zone (Risk Score: {pred['risk_score']:.1f}). Action plan dispatched via email."
