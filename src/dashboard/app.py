@@ -1080,9 +1080,35 @@ elif st.session_state.user_role == "Parent":
     st.title("👪 Parent Dashboard")
     st.write(f"Logged in as parent for student: **{student_profile.user.name}** (Roll Number: **{student_profile.roll_number}**)")
     
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+        st.metric("Child Attendance", f"{student_profile.attendance_pct:.1f}%")
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    with c2:
+        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+        ml_data = get_student_ml_data(student_profile)
+        pred = predict_student_risk(ml_data)
+        st.write("AI-generated Academic Risk Evaluation:")
+        status_class = "status-low" if pred["risk_label"] == "Low" else ("status-medium" if pred["risk_label"] == "Medium" else "status-high")
+        st.markdown(f"<span class='{status_class}'>{pred['risk_label']} Risk ({pred['risk_score']:.1f}/100)</span>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    # Notification logs
+    st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+    st.subheader("Notification & Alert Log History")
+    alerts = db.query(AlertLog).filter(AlertLog.student_id == student_profile.id).order_by(AlertLog.timestamp.desc()).all()
+    if alerts:
+        alert_data = [{"Timestamp": a.timestamp.strftime("%Y-%m-%d %H:%M"), "Type": a.type, "Message Content": a.message, "Status": a.status} for a in alerts]
+        st.dataframe(pd.DataFrame(alert_data), use_container_width=True)
+    else:
+        st.write("No notifications dispatched to parent accounts this term.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
     # Telegram Bot Onboarding Call to Action
     st.markdown(f"""
-    <div class='premium-card' style='border-left: 4px solid #0088cc; background: rgba(0, 136, 204, 0.05); margin-bottom: 20px;'>
+    <div class='premium-card' style='border-left: 4px solid #0088cc; background: rgba(0, 136, 204, 0.05); margin-top: 20px;'>
         <h4 style='color: #0088cc; margin-top: 0; font-family: "Plus Jakarta Sans", sans-serif; font-weight: 700;'>✈️ Receive Instant Telegram Alerts</h4>
         <p style='margin-bottom: 12px; font-size: 0.95rem;'>To receive free academic status alerts and attendance warnings instantly on your mobile phone, please click the button below and tap <b>Start</b> in your Telegram app:</p>
         <a href="https://t.me/eduinsights_ai_bot" target="_blank" style="text-decoration: none;">
@@ -1116,32 +1142,6 @@ elif st.session_state.user_role == "Parent":
                     st.rerun()
             else:
                 st.warning("Please enter a valid Chat ID.")
-                
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
-        st.metric("Child Attendance", f"{student_profile.attendance_pct:.1f}%")
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-    with c2:
-        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
-        ml_data = get_student_ml_data(student_profile)
-        pred = predict_student_risk(ml_data)
-        st.write("AI-generated Academic Risk Evaluation:")
-        status_class = "status-low" if pred["risk_label"] == "Low" else ("status-medium" if pred["risk_label"] == "Medium" else "status-high")
-        st.markdown(f"<span class='{status_class}'>{pred['risk_label']} Risk ({pred['risk_score']:.1f}/100)</span>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-    # Notification logs
-    st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
-    st.subheader("Notification & Alert Log History")
-    alerts = db.query(AlertLog).filter(AlertLog.student_id == student_profile.id).order_by(AlertLog.timestamp.desc()).all()
-    if alerts:
-        alert_data = [{"Timestamp": a.timestamp.strftime("%Y-%m-%d %H:%M"), "Type": a.type, "Message Content": a.message, "Status": a.status} for a in alerts]
-        st.dataframe(pd.DataFrame(alert_data), use_container_width=True)
-    else:
-        st.write("No notifications dispatched to parent accounts this term.")
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 # ==================== FACULTY PORTAL ====================
