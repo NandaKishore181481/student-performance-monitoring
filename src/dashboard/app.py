@@ -11,7 +11,9 @@ from datetime import datetime, date, timedelta
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.append(BASE_DIR)
 
-from src.database import SessionLocal, User, StudentProfile, AcademicMarks, FacultyRemarks, Assignment, AlertLog, hash_password, verify_password, Announcement
+from src.database import SessionLocal, User, StudentProfile, AcademicMarks, FacultyRemarks, Assignment, AlertLog, hash_password, verify_password, Announcement, engine, Base, seed_database
+Base.metadata.create_all(bind=engine)
+seed_database()
 from src.ml_models import predict_student_risk, get_explainable_ai, train_and_select_best_model
 from src.analytics import run_student_clustering, analyze_remark_sentiment, predict_exam_pass_probability
 from src.alerts import send_email, send_sms, send_whatsapp, generate_personalized_ai_alert
@@ -1349,8 +1351,11 @@ elif st.session_state.user_role == "Faculty":
                 
             detected_names = manager.scan_image_and_mark_attendance(db, temp_path, original_filename=camera_file.name if camera_file else None)
             
-            st.success(f"Scanning complete! Detected and marked present:")
-            st.write(detected_names)
+            if detected_names:
+                st.success(f"Scanning complete! Detected and marked present:")
+                st.write(detected_names)
+            else:
+                st.error("Face Is Not Found Try Again")
             
             # Show image if exists
             if os.path.exists(temp_path):

@@ -28,6 +28,18 @@ def get_db_path():
     if is_streamlit_cloud:
         tmp_dir = tempfile.gettempdir()
         writable_db_path = os.path.join(tmp_dir, f"student_system_{unique_suffix}.db")
+        if os.path.exists(writable_db_path):
+            try:
+                conn = sqlite3.connect(writable_db_path)
+                cursor = conn.cursor()
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='announcements'")
+                exists = cursor.fetchone()
+                conn.close()
+                if not exists:
+                    os.remove(writable_db_path)
+            except Exception:
+                pass
+
         if not os.path.exists(writable_db_path) and os.path.exists(local_db_path):
             try:
                 shutil.copy2(local_db_path, writable_db_path)

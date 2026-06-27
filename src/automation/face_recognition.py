@@ -234,23 +234,13 @@ class FaceAttendanceManager:
                     match_type = "Eigen" if eigen_match_idx != -1 else "Hist"
                     cv2.putText(img, f"{name} ({match_type})", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
                 else:
-                    if i < len(self.known_face_names):
-                        name = self.known_face_names[i]
-                        student_id = self.known_student_ids[i]
-                        self._mark_student_present(db, student_id)
-                        detected_names.append(name)
-                        cv2.putText(img, name, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+                    # Draw red box for unrecognized face
+                    cv2.rectangle(img, (x, y), (x+w, y+h), (0, 0, 255), 2)
+                    cv2.putText(img, "Unknown Face", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
                         
             # Overwrite original image with annotations
             cv2.imwrite(image_path, img)
             
-        # 3. Complete Simulation fallback if no faces detected
-        if not detected_names:
-            # Mark all students present for simulation convenience
-            for idx, student_id in enumerate(self.known_student_ids):
-                self._mark_student_present(db, student_id)
-                detected_names.append(self.known_face_names[idx])
-                
         return detected_names
 
     def _mark_student_present(self, db: Session, student_id: int):
