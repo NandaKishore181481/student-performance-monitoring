@@ -4,6 +4,8 @@ import numpy as np
 from datetime import datetime
 from sqlalchemy.orm import Session
 from src.database import StudentProfile, User
+from sklearn.decomposition import PCA
+from sklearn.neighbors import KNeighborsClassifier
 
 # Try to import face_recognition
 try:
@@ -22,6 +24,10 @@ class FaceAttendanceManager:
         self.known_face_names = []
         self.known_student_ids = []
         self.cascade_classifier = None
+        self.pca = None
+        self.knn = None
+        self.faces_data = []
+        self.faces_labels = []
         
         # Load Haar Cascade as a fallback face detector
         try:
@@ -76,6 +82,42 @@ class FaceAttendanceManager:
             else:
                 # Mock 128-d encoding
                 self.known_face_encodings.append(np.random.normal(0, 0.1, 128))
+                
+        # Train Eigenfaces model on the collected known faces
+        self.faces_data = []
+        self.faces_labels = []
+        for idx, student in enumerate(students):
+            # Check for multiple possible extensions (.jpg, .jpeg, .png)
+            image_path = None
+            for ext in [".jpg", ".jpeg", ".png"]:
+                tp = os.path.join(KNOWN_FACES_DIR, f"{student.roll_number}{ext}")
+                if os.path.exists(tp):
+                    image_path = tp
+                    break
+            
+            if image_path:
+                try:
+                    img = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+                    if img is not None:
+                        img_resized = cv2.resize(img, (60, 60))
+                        self.faces_data.append(img_resized.flatten())
+                        self.faces_labels.append(idx)
+                except Exception as e:
+                    print(f"Error loading Eigenface template for {student.roll_number}: {e}")
+                    
+        if len(self.faces_data) >= 2:
+            try:
+                X = np.array(self.faces_data)
+                y = np.array(self.faces_labels)
+                n_comp = min(len(self.faces_data), 15)
+                self.pca = PCA(n_components=n_comp, whiten=True)
+                self.pca.fit(X)
+                X_pca = self.pca.transform(X)
+                self.knn = KNeighborsClassifier(n_neighbors=1, metric='euclidean')
+                self.knn.fit(X_pca, y)
+                print(f"Successfully trained Eigenfaces model with {len(self.faces_data)} templates.")
+            except Exception as e:
+                print(f"Eigenfaces training failed: {e}")
                 
         print(f"Loaded {len(self.known_face_names)} student face profiles.")
 
@@ -136,47 +178,61 @@ class FaceAttendanceManager:
                 face_crop = gray[y:y+h, x:x+w]
                 face_crop_resized = cv2.resize(face_crop, (100, 100))
                 
+                # Try matching using Eigenfaces (PCA + KNN) first
+                eigen_match_idx = -1
+                if self.pca is not None and self.knn is not None:
+                    try:
+                        face_crop_eigen = cv2.resize(face_crop, (60, 60))
+                        face_vector = face_crop_eigen.flatten().reshape(1, -1)
+                        face_pca = self.pca.transform(face_vector)
+                        distances, indices = self.knn.kneighbors(face_pca, n_neighbors=1)
+                        dist = distances[0][0]
+                        if dist < 18.0:
+                            eigen_match_idx = self.knn.predict(face_pca)[0]
+                    except Exception as e:
+                        print(f"Eigenfaces prediction error: {e}")
+
                 best_score = -1.0
-                best_student_idx = -1
+                best_student_idx = eigen_match_idx
                 
-                for idx, student_id in enumerate(self.known_student_ids):
-                    student = db.query(StudentProfile).filter(StudentProfile.id == student_id).first()
-                    if not student:
-                        continue
-                    
-                    # Find any template format
-                    template_path = None
-                    for ext in [".jpg", ".jpeg", ".png"]:
-                        tp = os.path.join(KNOWN_FACES_DIR, f"{student.roll_number}{ext}")
-                        if os.path.exists(tp):
-                            template_path = tp
-                            break
-                            
-                    if template_path:
-                        try:
-                            temp_img = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
-                            if temp_img is not None:
-                                temp_resized = cv2.resize(temp_img, (100, 100))
-                                # Calculate histograms
-                                hist_crop = cv2.calcHist([face_crop_resized], [0], None, [256], [0, 256])
-                                hist_temp = cv2.calcHist([temp_resized], [0], None, [256], [0, 256])
-                                # Normalize
-                                cv2.normalize(hist_crop, hist_crop, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
-                                cv2.normalize(hist_temp, hist_temp, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
-                                # Compare using correlation metric
-                                score = cv2.compareHist(hist_crop, hist_temp, cv2.HISTCMP_CORREL)
-                                if score > best_score:
-                                    best_score = score
-                                    best_student_idx = idx
-                        except Exception as ex:
-                            print(f"Error matching template: {ex}")
+                # If Eigenfaces did not find a strong match, run histogram matching
+                if best_student_idx == -1:
+                    for idx, student_id in enumerate(self.known_student_ids):
+                        student = db.query(StudentProfile).filter(StudentProfile.id == student_id).first()
+                        if not student:
+                            continue
+                        
+                        template_path = None
+                        for ext in [".jpg", ".jpeg", ".png"]:
+                            tp = os.path.join(KNOWN_FACES_DIR, f"{student.roll_number}{ext}")
+                            if os.path.exists(tp):
+                                template_path = tp
+                                break
+                                
+                        if template_path:
+                            try:
+                                temp_img = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
+                                if temp_img is not None:
+                                    temp_resized = cv2.resize(temp_img, (100, 100))
+                                    hist_crop = cv2.calcHist([face_crop_resized], [0], None, [256], [0, 256])
+                                    hist_temp = cv2.calcHist([temp_resized], [0], None, [256], [0, 256])
+                                    cv2.normalize(hist_crop, hist_crop, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
+                                    cv2.normalize(hist_temp, hist_temp, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
+                                    score = cv2.compareHist(hist_crop, hist_temp, cv2.HISTCMP_CORREL)
+                                    if score > best_score:
+                                        best_score = score
+                                        best_student_idx = idx
+                            except Exception as ex:
+                                print(f"Error matching template: {ex}")
                 
-                if best_score > 0.35 and best_student_idx != -1:
+                # If we have a valid match (either via Eigenfaces or histogram correlation)
+                if best_student_idx != -1 and (eigen_match_idx != -1 or best_score > 0.35):
                     name = self.known_face_names[best_student_idx]
                     student_id = self.known_student_ids[best_student_idx]
                     self._mark_student_present(db, student_id)
                     detected_names.append(name)
-                    cv2.putText(img, f"{name} ({best_score:.2f})", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+                    match_type = "Eigen" if eigen_match_idx != -1 else "Hist"
+                    cv2.putText(img, f"{name} ({match_type})", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
                 else:
                     if i < len(self.known_face_names):
                         name = self.known_face_names[i]
