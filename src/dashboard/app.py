@@ -1035,6 +1035,253 @@ st.sidebar.markdown(f"**Status:** {status_emoji}")
 
 st.sidebar.markdown("---")
 
+def render_announcement_hub(db, current_user):
+    st.subheader("📢 Announcement Hub")
+    db_user = db.query(User).filter(User.id == current_user.user_id).first()
+    if not db_user:
+        st.error("User session invalid.")
+        return
+    
+    # Form to create new announcement
+    st.markdown("### Create New Announcement")
+    with st.form("announcement_form", clear_on_submit=False):
+        col1, col2 = st.columns(2)
+        with col1:
+            title = st.text_input("Announcement Title", placeholder="e.g. Remedial Class Schedule")
+            priority = st.selectbox("Priority Level", ["Normal", "Important", "Urgent"])
+            publish_date = st.date_input("Publish Date", date.today())
+            
+        with col2:
+            target_dept = st.selectbox("Target Department", ["All", "CS", "ECE", "MECH", "DS", "AIML"])
+            target_year = st.selectbox("Target Year", ["All", "1", "2", "3", "4"])
+            target_sec = st.selectbox("Target Section", ["All", "A", "B", "C"])
+            expiry_date = st.date_input("Expiry Date", date.today() + timedelta(days=7))
+            
+        description = st.text_area("Announcement Description", placeholder="Enter description here...", height=120)
+        
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            generate_voice = st.form_submit_button("Generate AI Voice")
+        with col_btn2:
+            publish = st.form_submit_button("Publish Announcement")
+            
+    # Session state to store temp tts generation flag
+    if "temp_tts_generated" not in st.session_state:
+        st.session_state.temp_tts_generated = False
+        
+    temp_audio_path = os.path.join(BASE_DIR, "data", "announcements", "temp_tts.mp3")
+    
+    if generate_voice:
+        if not title or not description:
+            st.error("Please enter both Title and Description first.")
+        else:
+            with st.spinner("Generating AI Voice via Edge-TTS..."):
+                from src.tts_service import generate_voice_file
+                text_to_speak = f"Announcement: {title}. {description}"
+                # Ensure directories exist
+                os.makedirs(os.path.dirname(temp_audio_path), exist_ok=True)
+                success = generate_voice_file(text_to_speak, temp_audio_path)
+                if success:
+                    st.session_state.temp_tts_generated = True
+                    st.success("AI Neural Voice generated successfully!")
+                else:
+                    st.error("Failed to generate AI voice.")
+                    
+    # Render audio player if generated
+    if st.session_state.temp_tts_generated and os.path.exists(temp_audio_path):
+        st.write("#### AI Voice Preview")
+        st.audio(temp_audio_path, format="audio/mp3")
+        
+    if publish:
+        if not title or not description:
+            st.error("Please enter both Title and Description.")
+        else:
+            with st.spinner("Publishing announcement..."):
+                # Save to db
+                new_ann = Announcement(
+                    title=title,
+                    description=description,
+                    created_by=db_user.id,
+                    role=db_user.role,
+                    target_department=target_dept,
+                    target_year=target_year,
+                    target_section=target_sec,
+                    priority=priority,
+                    publish_date=publish_date,
+                    expiry_date=expiry_date
+                )
+                db.add(new_ann)
+                db.commit()
+                db.refresh(new_ann)
+                
+                # If voice was pre-generated, copy to final path
+                if st.session_state.temp_tts_generated and os.path.exists(temp_audio_path):
+                    filename = f"announcement_{new_ann.id}.mp3"
+                    relative_path = os.path.join("data", "announcements", filename)
+                    final_path = os.path.join(BASE_DIR, relative_path)
+                    os.makedirs(os.path.dirname(final_path), exist_ok=True)
+                    try:
+                        import shutil
+                        shutil.copy2(temp_audio_path, final_path)
+                        new_ann.audio_url = relative_path.replace("\\", "/")
+                        db.commit()
+                        # Clean temp tts flag
+                        st.session_state.temp_tts_generated = False
+                        if os.path.exists(temp_audio_path):
+                            os.remove(temp_audio_path)
+                    except Exception as e:
+                        st.warning(f"Failed to link audio file: {e}")
+                
+                st.success("Announcement published successfully!")
+                
+                # Trigger Telegram broadcast
+                from src.alerts import broadcast_announcement_to_telegram
+                sent_alerts = broadcast_announcement_to_telegram(db, new_ann.id)
+                if sent_alerts > 0:
+                    st.info(f"Broadcasted text and voice memo to {sent_alerts} Telegram Chat IDs!")
+                    
+                st.rerun()
+
+    # Display list of existing announcements created by this user
+    st.markdown("### Manage Published Announcements")
+    user_announcements = db.query(Announcement).filter(
+        Announcement.created_by == db_user.id
+    ).order_by(Announcement.created_at.desc()).all()
+    
+    if user_announcements:
+        for ann in user_announcements:
+            priority_color = "red" if ann.priority == "Urgent" else ("orange" if ann.priority == "Important" else "blue")
+            st.markdown(f"""
+            <div style='border: 1px solid rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 8px; margin-bottom: 15px; background: rgba(255, 255, 255, 0.02);'>
+                <div style='display: flex; justify-content: space-between; align-items: center;'>
+                    <h4 style='margin: 0; color: #3B82F6;'>{ann.title}</h4>
+                    <span style='background-color: {priority_color}; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold;'>
+                        {ann.priority}
+                    </span>
+                </div>
+                <p style='color: #888; font-size: 0.85rem; margin-top: 5px; margin-bottom: 10px;'>
+                    <b>Target:</b> Dept: {ann.target_department} | Year: {ann.target_year} | Section: {ann.target_section} <br>
+                    <b>Active:</b> {ann.publish_date} to {ann.expiry_date}
+                </p>
+                <p style='margin-bottom: 10px;'>{ann.description}</p>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Show audio player if exists
+            if ann.audio_url:
+                audio_full_path = os.path.join(BASE_DIR, ann.audio_url)
+                if os.path.exists(audio_full_path):
+                    st.audio(audio_full_path, format="audio/mp3")
+                else:
+                    st.warning("Audio file not found on disk.")
+            else:
+                # Add a button to generate audio post-publish
+                if st.button(f"🔊 Generate AI Voice for '{ann.title[:20]}...'", key=f"tts_btn_{ann.id}"):
+                    with st.spinner("Generating AI Voice..."):
+                        from src.tts_service import generate_voice_file
+                        filename = f"announcement_{ann.id}.mp3"
+                        relative_path = os.path.join("data", "announcements", filename)
+                        audio_path = os.path.join(BASE_DIR, relative_path)
+                        text_to_speak = f"Announcement: {ann.title}. {ann.description}"
+                        if generate_voice_file(text_to_speak, audio_path):
+                            ann.audio_url = relative_path.replace("\\", "/")
+                            db.commit()
+                            st.success("AI voice generated!")
+                            st.rerun()
+                            
+            if st.button(f"🗑️ Delete Announcement", key=f"del_btn_{ann.id}", use_container_width=True):
+                # Delete voice file
+                if ann.audio_url:
+                    audio_full_path = os.path.join(BASE_DIR, ann.audio_url)
+                    if os.path.exists(audio_full_path):
+                        try:
+                            os.remove(audio_full_path)
+                        except Exception:
+                            pass
+                db.delete(ann)
+                db.commit()
+                st.success("Announcement deleted successfully!")
+                st.rerun()
+    else:
+        st.write("You have not published any announcements yet.")
+
+def render_announcements_viewer(db, student_profile):
+    st.subheader("📢 Active Academic Announcements")
+    if not student_profile:
+        st.warning("No student profile associated with this account. Cannot retrieve filtered announcements.")
+        return
+    
+    # Search and Filter
+    col_search, col_filter = st.columns([2, 1])
+    with col_search:
+        search_query = st.text_input("🔍 Search Announcements", placeholder="Search by title or content...")
+    with col_filter:
+        priority_filter = st.selectbox("Filter by Priority", ["All", "Normal", "Important", "Urgent"])
+        
+    # Get active announcements matching target audience
+    today_date = date.today()
+    query = db.query(Announcement).filter(
+        Announcement.publish_date <= today_date,
+        Announcement.expiry_date >= today_date
+    )
+    
+    dept = student_profile.class_section.split("-")[0] if "-" in student_profile.class_section else "CS"
+    sec_part = student_profile.class_section.split("-")[1] if "-" in student_profile.class_section else student_profile.class_section
+    year = "All"
+    section = "All"
+    if len(sec_part) >= 3 and sec_part.startswith("Y"):
+        year = sec_part[1]
+        section = sec_part[2:]
+        
+    query = query.filter(
+        (Announcement.target_department == "All") | (Announcement.target_department == dept),
+        (Announcement.target_year == "All") | (Announcement.target_year == year),
+        (Announcement.target_section == "All") | (Announcement.target_section == section)
+    )
+    
+    # Priority filter
+    if priority_filter != "All":
+        query = query.filter(Announcement.priority == priority_filter)
+        
+    # Search query
+    if search_query:
+        query = query.filter(
+            (Announcement.title.like(f"%{search_query}%")) | 
+            (Announcement.description.like(f"%{search_query}%"))
+        )
+        
+    announcements = query.order_by(Announcement.created_at.desc()).all()
+    
+    if announcements:
+        for ann in announcements:
+            priority_color = "#E53E3E" if ann.priority == "Urgent" else ("#DD6B20" if ann.priority == "Important" else "#3182CE")
+            border_style = f"border-left: 5px solid {priority_color};"
+            
+            st.markdown(f"""
+            <div style='background-color: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); {border_style} padding: 20px; border-radius: 8px; margin-bottom: 20px;'>
+                <div style='display: flex; justify-content: space-between; align-items: center;'>
+                    <h3 style='margin: 0; font-size: 1.25rem;'>{ann.title}</h3>
+                    <span style='background-color: {priority_color}; color: white; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: bold;'>
+                        {ann.priority}
+                    </span>
+                </div>
+                <p style='color: #888; font-size: 0.85rem; margin-top: 8px; margin-bottom: 12px;'>
+                    📅 <b>Posted:</b> {ann.publish_date} | 👤 <b>By:</b> {ann.creator.name if ann.creator else 'Admin'} ({ann.role})
+                </p>
+                <div style='font-size: 0.95rem; line-height: 1.6; margin-bottom: 15px;'>
+                    {ann.description.replace(chr(10), '<br>')}
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            # Embed audio player if available
+            if ann.audio_url:
+                audio_full_path = os.path.join(BASE_DIR, ann.audio_url)
+                if os.path.exists(audio_full_path):
+                    st.audio(audio_full_path, format="audio/mp3")
+    else:
+        st.write("No active announcements found matching your target audience.")
+
 # --- PORTALS ORCHESTRATION ---
 
 # Fetch details if student or parent
@@ -1589,252 +1836,5 @@ elif st.session_state.user_role == "HOD":
             
     with tab4:
         render_announcement_hub(db, st.session_state)
-
-def render_announcement_hub(db, current_user):
-    st.subheader("📢 Announcement Hub")
-    db_user = db.query(User).filter(User.id == current_user.user_id).first()
-    if not db_user:
-        st.error("User session invalid.")
-        return
-    
-    # Form to create new announcement
-    st.markdown("### Create New Announcement")
-    with st.form("announcement_form", clear_on_submit=False):
-        col1, col2 = st.columns(2)
-        with col1:
-            title = st.text_input("Announcement Title", placeholder="e.g. Remedial Class Schedule")
-            priority = st.selectbox("Priority Level", ["Normal", "Important", "Urgent"])
-            publish_date = st.date_input("Publish Date", date.today())
-            
-        with col2:
-            target_dept = st.selectbox("Target Department", ["All", "CS", "ECE", "MECH", "DS", "AIML"])
-            target_year = st.selectbox("Target Year", ["All", "1", "2", "3", "4"])
-            target_sec = st.selectbox("Target Section", ["All", "A", "B", "C"])
-            expiry_date = st.date_input("Expiry Date", date.today() + timedelta(days=7))
-            
-        description = st.text_area("Announcement Description", placeholder="Enter description here...", height=120)
-        
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            generate_voice = st.form_submit_button("Generate AI Voice")
-        with col_btn2:
-            publish = st.form_submit_button("Publish Announcement")
-            
-    # Session state to store temp tts generation flag
-    if "temp_tts_generated" not in st.session_state:
-        st.session_state.temp_tts_generated = False
-        
-    temp_audio_path = os.path.join(BASE_DIR, "data", "announcements", "temp_tts.mp3")
-    
-    if generate_voice:
-        if not title or not description:
-            st.error("Please enter both Title and Description first.")
-        else:
-            with st.spinner("Generating AI Voice via Edge-TTS..."):
-                from src.tts_service import generate_voice_file
-                text_to_speak = f"Announcement: {title}. {description}"
-                # Ensure directories exist
-                os.makedirs(os.path.dirname(temp_audio_path), exist_ok=True)
-                success = generate_voice_file(text_to_speak, temp_audio_path)
-                if success:
-                    st.session_state.temp_tts_generated = True
-                    st.success("AI Neural Voice generated successfully!")
-                else:
-                    st.error("Failed to generate AI voice.")
-                    
-    # Render audio player if generated
-    if st.session_state.temp_tts_generated and os.path.exists(temp_audio_path):
-        st.write("#### AI Voice Preview")
-        st.audio(temp_audio_path, format="audio/mp3")
-        
-    if publish:
-        if not title or not description:
-            st.error("Please enter both Title and Description.")
-        else:
-            with st.spinner("Publishing announcement..."):
-                # Save to db
-                new_ann = Announcement(
-                    title=title,
-                    description=description,
-                    created_by=db_user.id,
-                    role=db_user.role,
-                    target_department=target_dept,
-                    target_year=target_year,
-                    target_section=target_sec,
-                    priority=priority,
-                    publish_date=publish_date,
-                    expiry_date=expiry_date
-                )
-                db.add(new_ann)
-                db.commit()
-                db.refresh(new_ann)
-                
-                # If voice was pre-generated, copy to final path
-                if st.session_state.temp_tts_generated and os.path.exists(temp_audio_path):
-                    filename = f"announcement_{new_ann.id}.mp3"
-                    relative_path = os.path.join("data", "announcements", filename)
-                    final_path = os.path.join(BASE_DIR, relative_path)
-                    os.makedirs(os.path.dirname(final_path), exist_ok=True)
-                    try:
-                        import shutil
-                        shutil.copy2(temp_audio_path, final_path)
-                        new_ann.audio_url = relative_path.replace("\\", "/")
-                        db.commit()
-                        # Clean temp tts flag
-                        st.session_state.temp_tts_generated = False
-                        if os.path.exists(temp_audio_path):
-                            os.remove(temp_audio_path)
-                    except Exception as e:
-                        st.warning(f"Failed to link audio file: {e}")
-                
-                st.success("Announcement published successfully!")
-                
-                # Trigger Telegram broadcast
-                from src.alerts import broadcast_announcement_to_telegram
-                sent_alerts = broadcast_announcement_to_telegram(db, new_ann.id)
-                if sent_alerts > 0:
-                    st.info(f"Broadcasted text and voice memo to {sent_alerts} Telegram Chat IDs!")
-                    
-                st.rerun()
-
-    # Display list of existing announcements created by this user
-    st.markdown("### Manage Published Announcements")
-    user_announcements = db.query(Announcement).filter(
-        Announcement.created_by == db_user.id
-    ).order_by(Announcement.created_at.desc()).all()
-    
-    if user_announcements:
-        for ann in user_announcements:
-            priority_color = "red" if ann.priority == "Urgent" else ("orange" if ann.priority == "Important" else "blue")
-            st.markdown(f"""
-            <div style='border: 1px solid rgba(255, 255, 255, 0.1); padding: 15px; border-radius: 8px; margin-bottom: 15px; background: rgba(255, 255, 255, 0.02);'>
-                <div style='display: flex; justify-content: space-between; align-items: center;'>
-                    <h4 style='margin: 0; color: #3B82F6;'>{ann.title}</h4>
-                    <span style='background-color: {priority_color}; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold;'>
-                        {ann.priority}
-                    </span>
-                </div>
-                <p style='color: #888; font-size: 0.85rem; margin-top: 5px; margin-bottom: 10px;'>
-                    <b>Target:</b> Dept: {ann.target_department} | Year: {ann.target_year} | Section: {ann.target_section} <br>
-                    <b>Active:</b> {ann.publish_date} to {ann.expiry_date}
-                </p>
-                <p style='margin-bottom: 10px;'>{ann.description}</p>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Show audio player if exists
-            if ann.audio_url:
-                audio_full_path = os.path.join(BASE_DIR, ann.audio_url)
-                if os.path.exists(audio_full_path):
-                    st.audio(audio_full_path, format="audio/mp3")
-                else:
-                    st.warning("Audio file not found on disk.")
-            else:
-                # Add a button to generate audio post-publish
-                if st.button(f"🔊 Generate AI Voice for '{ann.title[:20]}...'", key=f"tts_btn_{ann.id}"):
-                    with st.spinner("Generating AI Voice..."):
-                        from src.tts_service import generate_voice_file
-                        filename = f"announcement_{ann.id}.mp3"
-                        relative_path = os.path.join("data", "announcements", filename)
-                        audio_path = os.path.join(BASE_DIR, relative_path)
-                        text_to_speak = f"Announcement: {ann.title}. {ann.description}"
-                        if generate_voice_file(text_to_speak, audio_path):
-                            ann.audio_url = relative_path.replace("\\", "/")
-                            db.commit()
-                            st.success("AI voice generated!")
-                            st.rerun()
-                            
-            if st.button(f"🗑️ Delete Announcement", key=f"del_btn_{ann.id}", use_container_width=True):
-                # Delete voice file
-                if ann.audio_url:
-                    audio_full_path = os.path.join(BASE_DIR, ann.audio_url)
-                    if os.path.exists(audio_full_path):
-                        try:
-                            os.remove(audio_full_path)
-                        except Exception:
-                            pass
-                db.delete(ann)
-                db.commit()
-                st.success("Announcement deleted successfully!")
-                st.rerun()
-    else:
-        st.write("You have not published any announcements yet.")
-
-def render_announcements_viewer(db, student_profile):
-    st.subheader("📢 Active Academic Announcements")
-    if not student_profile:
-        st.warning("No student profile associated with this account. Cannot retrieve filtered announcements.")
-        return
-    
-    # Search and Filter
-    col_search, col_filter = st.columns([2, 1])
-    with col_search:
-        search_query = st.text_input("🔍 Search Announcements", placeholder="Search by title or content...")
-    with col_filter:
-        priority_filter = st.selectbox("Filter by Priority", ["All", "Normal", "Important", "Urgent"])
-        
-    # Get active announcements matching target audience
-    today_date = date.today()
-    query = db.query(Announcement).filter(
-        Announcement.publish_date <= today_date,
-        Announcement.expiry_date >= today_date
-    )
-    
-    dept = student_profile.class_section.split("-")[0] if "-" in student_profile.class_section else "CS"
-    sec_part = student_profile.class_section.split("-")[1] if "-" in student_profile.class_section else student_profile.class_section
-    year = "All"
-    section = "All"
-    if len(sec_part) >= 3 and sec_part.startswith("Y"):
-        year = sec_part[1]
-        section = sec_part[2:]
-        
-    query = query.filter(
-        (Announcement.target_department == "All") | (Announcement.target_department == dept),
-        (Announcement.target_year == "All") | (Announcement.target_year == year),
-        (Announcement.target_section == "All") | (Announcement.target_section == section)
-    )
-    
-    # Priority filter
-    if priority_filter != "All":
-        query = query.filter(Announcement.priority == priority_filter)
-        
-    # Search query
-    if search_query:
-        query = query.filter(
-            (Announcement.title.like(f"%{search_query}%")) | 
-            (Announcement.description.like(f"%{search_query}%"))
-        )
-        
-    announcements = query.order_by(Announcement.created_at.desc()).all()
-    
-    if announcements:
-        for ann in announcements:
-            priority_color = "#E53E3E" if ann.priority == "Urgent" else ("#DD6B20" if ann.priority == "Important" else "#3182CE")
-            border_style = f"border-left: 5px solid {priority_color};"
-            
-            st.markdown(f"""
-            <div style='background-color: rgba(255, 255, 255, 0.03); border: 1px solid rgba(255, 255, 255, 0.1); {border_style} padding: 20px; border-radius: 8px; margin-bottom: 20px;'>
-                <div style='display: flex; justify-content: space-between; align-items: center;'>
-                    <h3 style='margin: 0; font-size: 1.25rem;'>{ann.title}</h3>
-                    <span style='background-color: {priority_color}; color: white; padding: 4px 10px; border-radius: 6px; font-size: 0.8rem; font-weight: bold;'>
-                        {ann.priority}
-                    </span>
-                </div>
-                <p style='color: #888; font-size: 0.85rem; margin-top: 8px; margin-bottom: 12px;'>
-                    📅 <b>Posted:</b> {ann.publish_date} | 👤 <b>By:</b> {ann.creator.name if ann.creator else 'Admin'} ({ann.role})
-                </p>
-                <div style='font-size: 0.95rem; line-height: 1.6; margin-bottom: 15px;'>
-                    {ann.description.replace(chr(10), '<br>')}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-            # Embed audio player if available
-            if ann.audio_url:
-                audio_full_path = os.path.join(BASE_DIR, ann.audio_url)
-                if os.path.exists(audio_full_path):
-                    st.audio(audio_full_path, format="audio/mp3")
-    else:
-        st.write("No active announcements found matching your target audience.")
 
 db.close()
