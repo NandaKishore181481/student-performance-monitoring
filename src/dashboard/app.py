@@ -533,15 +533,40 @@ db = SessionLocal()
 # --- AUTHENTICATION SHIELD ---
 def auth_page():
     # Logo and Header
-    st.markdown("""
-    <div style='text-align: center; margin-bottom: 10px;'>
-        <div style='display: inline-block; background: linear-gradient(135deg, #3B82F6, #8B5CF6); padding: 16px 18px; border-radius: 20px; box-shadow: 0 10px 30px rgba(139, 92, 246, 0.4); margin-bottom: 15px;'>
-            <span style='font-size: 2.5rem; line-height: 1;'>🧠</span>
+    import base64
+    logo_path = os.path.join(BASE_DIR, "data", "logo.jpg")
+    if os.path.exists(logo_path):
+        try:
+            with open(logo_path, "rb") as f:
+                logo_base64 = base64.b64encode(f.read()).decode()
+            logo_html = f"""
+            <div style='text-align: center; margin-bottom: 10px;'>
+                <img src="data:image/jpeg;base64,{logo_base64}" style='width: 140px; height: 140px; border-radius: 50%; object-fit: cover; border: 3px solid #3B82F6; box-shadow: 0 8px 24px rgba(59, 130, 246, 0.35); margin-bottom: 15px;' />
+                <h1>EduInsight AI</h1>
+                <p class='text-muted'>AI Based Academic Monitoring & Alert System</p>
+            </div>
+            """
+            st.markdown(logo_html, unsafe_allow_html=True)
+        except Exception:
+            st.markdown("""
+            <div style='text-align: center; margin-bottom: 10px;'>
+                <div style='display: inline-block; background: linear-gradient(135deg, #3B82F6, #8B5CF6); padding: 16px 18px; border-radius: 20px; box-shadow: 0 10px 30px rgba(139, 92, 246, 0.4); margin-bottom: 15px;'>
+                    <span style='font-size: 2.5rem; line-height: 1;'>🧠</span>
+                </div>
+                <h1>EduInsight AI</h1>
+                <p class='text-muted'>AI Based Academic Monitoring & Alert System</p>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.markdown("""
+        <div style='text-align: center; margin-bottom: 10px;'>
+            <div style='display: inline-block; background: linear-gradient(135deg, #3B82F6, #8B5CF6); padding: 16px 18px; border-radius: 20px; box-shadow: 0 10px 30px rgba(139, 92, 246, 0.4); margin-bottom: 15px;'>
+                <span style='font-size: 2.5rem; line-height: 1;'>🧠</span>
+            </div>
+            <h1>EduInsight AI</h1>
+            <p class='text-muted'>AI Based Academic Monitoring & Alert System</p>
         </div>
-        <h1>EduInsight AI</h1>
-        <p class='text-muted'>AI Based Academic Monitoring & Alert System</p>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
     
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
