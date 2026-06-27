@@ -28,20 +28,15 @@ def get_db_path():
     if is_streamlit_cloud:
         tmp_dir = tempfile.gettempdir()
         writable_db_path = os.path.join(tmp_dir, f"student_system_{unique_suffix}.db")
+        # Check if the existing DB is missing critical tables — if so, delete and recopy
         if os.path.exists(writable_db_path):
             try:
                 conn = sqlite3.connect(writable_db_path)
                 cursor = conn.cursor()
                 cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='announcements'")
                 ann_exists = cursor.fetchone()
-                
-                # Check if department column exists in users table
-                cursor.execute("PRAGMA table_info(users)")
-                cols = [row[1] for row in cursor.fetchall()]
-                dept_exists = "department" in cols
                 conn.close()
-                
-                if not ann_exists or not dept_exists:
+                if not ann_exists:
                     os.remove(writable_db_path)
             except Exception:
                 pass
@@ -78,7 +73,28 @@ def get_db_path():
         return writable_db_path
     return local_db_path
 
+def _run_migrations(db_path):
+    """Run lightweight schema migrations on an existing database."""
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        # Check if 'department' column exists in 'users' table
+        cursor.execute("PRAGMA table_info(users)")
+        cols = [row[1] for row in cursor.fetchall()]
+        if "department" in cols:
+            conn.close()
+            return
+        # Add the column
+        cursor.execute("ALTER TABLE users ADD COLUMN department TEXT")
+        # Backfill existing HOD/Faculty rows with 'CS' as default
+        cursor.execute("UPDATE users SET department = 'CS' WHERE role IN ('HOD', 'Faculty') AND department IS NULL")
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
 DB_PATH = get_db_path()
+_run_migrations(DB_PATH)
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
