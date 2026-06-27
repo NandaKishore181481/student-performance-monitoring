@@ -43,11 +43,17 @@ class FaceAttendanceManager:
         self.known_student_ids = []
         
         for student in students:
-            image_path = os.path.join(KNOWN_FACES_DIR, f"{student.roll_number}.jpg")
+            # Check for multiple possible extensions (.jpg, .jpeg, .png)
+            image_path = None
+            for ext in [".jpg", ".jpeg", ".png"]:
+                test_path = os.path.join(KNOWN_FACES_DIR, f"{student.roll_number}{ext}")
+                if os.path.exists(test_path):
+                    image_path = test_path
+                    break
             
             # If no image exists, we save a placeholder mock file
-            if not os.path.exists(image_path):
-                # Create a simple grey square as a mockup
+            if not image_path:
+                image_path = os.path.join(KNOWN_FACES_DIR, f"{student.roll_number}.jpg")
                 placeholder_img = np.zeros((200, 200, 3), dtype=np.uint8) + 128
                 cv2.putText(placeholder_img, student.user.name, (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
                 cv2.imwrite(image_path, placeholder_img)
