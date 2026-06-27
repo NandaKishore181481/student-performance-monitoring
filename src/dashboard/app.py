@@ -1244,7 +1244,7 @@ elif st.session_state.user_role == "Parent":
 elif st.session_state.user_role == "Faculty":
     st.title("👩‍🏫 Faculty Portal")
     
-    tab1, tab2, tab3 = st.tabs(["📊 Grades & Attendance Input", "📷 OpenCV Face Attendance", "📝 OCR Marks Upload"])
+    tab1, tab2, tab3, tab4 = st.tabs(["📊 Grades & Attendance Input", "📷 OpenCV Face Attendance", "📝 OCR Marks Upload", "📢 Publish Announcements"])
     
     with tab1:
         st.subheader("Student Grades & remarks Management")
@@ -1392,6 +1392,9 @@ elif st.session_state.user_role == "Faculty":
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
         st.markdown("</div>", unsafe_allow_html=True)
+        
+    with tab4:
+        render_announcement_hub(db, st.session_state)
 
 
 # ==================== HOD PORTAL ====================
@@ -1436,7 +1439,7 @@ elif st.session_state.user_role == "HOD":
         st.metric("Critical High-Risk Students", high_risk_count)
         st.markdown("</div>", unsafe_allow_html=True)
         
-    tab1, tab2, tab3 = st.tabs(["🛡️ Risk & Alerts Manager", "📊 Clustering & Performance Groups", "📈 Academic Failure Rates"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🛡️ Risk & Alerts Manager", "📊 Clustering & Performance Groups", "📈 Academic Failure Rates", "📢 Publish Announcements"])
     
     with tab1:
         st.subheader("Department Risk Auditing Panel")
@@ -1583,6 +1586,9 @@ elif st.session_state.user_role == "HOD":
                 st.markdown("</div>", unsafe_allow_html=True)
         else:
             st.warning("No grades recorded for subject analysis.")
+            
+    with tab4:
+        render_announcement_hub(db, st.session_state)
 
 def render_announcement_hub(db, current_user):
     st.subheader("📢 Announcement Hub")
