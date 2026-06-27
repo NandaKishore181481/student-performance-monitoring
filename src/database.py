@@ -175,6 +175,26 @@ class AlertLog(Base):
     
     student = relationship("StudentProfile", back_populates="alerts")
 
+class Announcement(Base):
+    __tablename__ = "announcements"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=False)
+    audio_url = Column(String, nullable=True)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    role = Column(String, nullable=False)  # 'HOD', 'Faculty'
+    target_department = Column(String, nullable=False, default="All")  # 'CS', 'ECE', 'All', etc.
+    target_year = Column(String, nullable=False, default="All")  # '1', '2', '3', '4', 'All'
+    target_section = Column(String, nullable=False, default="All")  # 'A', 'B', 'All', etc.
+    priority = Column(String, nullable=False, default="Normal")  # 'Normal', 'Important', 'Urgent'
+    publish_date = Column(Date, nullable=False, default=date.today)
+    expiry_date = Column(Date, nullable=False, default=lambda: date.today() + timedelta(days=7))
+    created_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    
+    # Relationship
+    creator = relationship("User", foreign_keys=[created_by])
+
 # Database session management helper
 def get_db():
     db = SessionLocal()

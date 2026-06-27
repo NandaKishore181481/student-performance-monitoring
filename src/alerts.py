@@ -9,7 +9,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from sqlalchemy.orm import Session
 from twilio.rest import Client
-from src.database import AlertLog
+from src.database import AlertLog, StudentProfile, Announcement
 
 # Credentials Configuration
 # In production, these should be loaded from env variables.
@@ -285,6 +285,134 @@ def send_email(db: Session, student_id: int, recipient_email: str, subject: str,
         log_alert_to_db(db, student_id, "Email", sim_message, "Sent (Simulated)")
         print(f"SMTP Credentials empty. {sim_message}")
         return True
+
+def broadcast_announcement_to_telegram(db: Session, announcement_id: int) -> int:
+    """
+    Finds all students matching the target audience filters of the announcement
+    and broadcasts the announcement text and AI voice MP3 to their Telegram chat IDs.
+    Returns the count of successfully sent announcements.
+    """
+    announcement = db.query(Announcement).filter(Announcement.id == announcement_id).first()
+    if not announcement:
+        print(f"Announcement ID {announcement_id} not found.")
+        return 0
+
+    telegram_token = os.getenv("TELEGRAM_BOT_TOKEN", "")
+    telegram_chat_id = os.getenv("TELEGRAM_CHAT_ID", "")
+    if not telegram_token:
+        print("Telegram bot token not configured. Skipping Telegram broadcast.")
+        return 0
+
+    import requests
+    import time
+    
+    # 1. Fetch matching students
+    students = db.query(StudentProfile).all()
+    target_students = []
+    for s in students:
+        dept = s.class_section.split("-")[0] if "-" in s.class_section else "CS"
+        sec_part = s.class_section.split("-")[1] if "-" in s.class_section else s.class_section
+        year = "All"
+        section = "All"
+        if len(sec_part) >= 3 and sec_part.startswith("Y"):
+            year = sec_part[1]
+            section = sec_part[2:]
+            
+        if announcement.target_department != "All" and dept != announcement.target_department:
+            continue
+        if announcement.target_year != "All" and year != announcement.target_year:
+            continue
+        if announcement.target_section != "All" and section != announcement.target_section:
+            continue
+        target_students.append(s)
+
+    print(f"Broadcasting announcement '{announcement.title}' to {len(target_students)} students...")
+    sent_count = 0
+    
+    # Track unique chat IDs to avoid double-sending in this broadcast
+    dispatched_chats = set()
+
+    for student in target_students:
+        # Collect chat IDs
+        student_phone = student.user.phone if (student.user and student.user.phone) else ""
+        parent_phone = student.parent.phone if student.parent else ""
+        
+        for recipient_phone, label in [(student_phone, "Student"), (parent_phone, "Parent")]:
+            if not recipient_phone:
+                continue
+                
+            clean_phone = "".join(filter(str.isdigit, recipient_phone))
+            is_mock = (
+                clean_phone.startswith("910000") or 
+                clean_phone.startswith("900000") or 
+                clean_phone.startswith("1555") or 
+                clean_phone.startswith("555") or 
+                not clean_phone
+            )
+            chat_id = telegram_chat_id if is_mock else clean_phone
+            
+            if chat_id in dispatched_chats:
+                continue
+            dispatched_chats.add(chat_id)
+            
+            # Format message text
+            priority_tag = f"[{announcement.priority.upper()}] " if announcement.priority != "Normal" else ""
+            msg_text = (
+                f"📢 *NEW ANNOUNCEMENT* 📢\n\n"
+                f"*Title:* {priority_tag}{announcement.title}\n"
+                f"*Posted By:* {announcement.creator.name if announcement.creator else 'Admin'} ({announcement.role})\n"
+                f"*Date:* {announcement.publish_date}\n\n"
+                f"{announcement.description}"
+            )
+            
+            # 1. Send Text Message
+            url_msg = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+            payload = {"chat_id": chat_id, "text": msg_text, "parse_mode": "Markdown"}
+            
+            try:
+                time.sleep(0.05)  # Pace sending
+                res = requests.post(url_msg, json=payload, timeout=10)
+                if res.status_code == 200:
+                    print(f"Sent announcement text to Chat ID: {chat_id}")
+                else:
+                    print(f"Failed to send text to {chat_id}: {res.text}")
+                    if chat_id != telegram_chat_id and telegram_chat_id:
+                        print("Trying fallback developer chat...")
+                        fallback_payload = {"chat_id": telegram_chat_id, "text": f"[Telegram Fallback] {msg_text}", "parse_mode": "Markdown"}
+                        requests.post(url_msg, json=fallback_payload, timeout=10)
+            except Exception as e:
+                print(f"Telegram send error: {e}")
+                
+            # 2. Send Voice MP3 File (if exists)
+            if announcement.audio_url:
+                # Find absolute file path
+                base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+                audio_path = os.path.join(base_dir, announcement.audio_url)
+                
+                if os.path.exists(audio_path):
+                    url_voice = f"https://api.telegram.org/bot{telegram_token}/sendVoice"
+                    try:
+                        time.sleep(0.05)  # Pace sending
+                        with open(audio_path, 'rb') as voice_file:
+                            files = {'voice': voice_file}
+                            data_payload = {'chat_id': chat_id, 'caption': f"AI Voice: {announcement.title}"}
+                            res_voice = requests.post(url_voice, data=data_payload, files=files, timeout=15)
+                            if res_voice.status_code == 200:
+                                print(f"Sent announcement voice file to Chat ID: {chat_id}")
+                            else:
+                                print(f"Failed to send voice to {chat_id}: {res_voice.text}")
+                                if chat_id != telegram_chat_id and telegram_chat_id:
+                                    print("Trying fallback developer chat for voice...")
+                                    voice_file.seek(0)
+                                    fallback_data = {'chat_id': telegram_chat_id, 'caption': f"[Fallback] AI Voice: {announcement.title}"}
+                                    requests.post(url_voice, data=fallback_data, files={'voice': voice_file}, timeout=15)
+                    except Exception as e:
+                        print(f"Telegram voice send error: {e}")
+            
+            sent_count += 1
+            
+    return sent_count
+
 
 if __name__ == "__main__":
     # Test message builder

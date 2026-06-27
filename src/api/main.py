@@ -1,5 +1,5 @@
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import List, Optional
 from fastapi import FastAPI, Depends, HTTPException, status, Security
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from jose import JWTError, jwt
 
-from src.database import get_db, User, StudentProfile, AcademicMarks, seed_database, verify_password
+from src.database import get_db, User, StudentProfile, AcademicMarks, seed_database, verify_password, Announcement
 from src.ml_models import predict_student_risk, get_explainable_ai
 from src.analytics import predict_exam_pass_probability
 from src.reporting import generate_student_pdf_report
@@ -322,3 +322,187 @@ def download_pdf_report(student_id: int, db: Session = Depends(get_db), current_
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate report: {e}")
+
+# --- Announcement Schemas ---
+class AnnouncementOut(BaseModel):
+    id: int
+    title: str
+    description: str
+    audio_url: Optional[str]
+    created_by: int
+    creator_name: str
+    role: str
+    target_department: str
+    target_year: str
+    target_section: str
+    priority: str
+    publish_date: date
+    expiry_date: date
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+class AnnouncementCreate(BaseModel):
+    title: str
+    description: str
+    target_department: str = "All"
+    target_year: str = "All"
+    target_section: str = "All"
+    priority: str = "Normal"
+    publish_date: Optional[date] = None
+    expiry_date: Optional[date] = None
+
+# --- Announcement Endpoints ---
+@app.get("/api/announcements", response_model=List[AnnouncementOut])
+def get_announcements(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    today_date = date.today()
+    query = db.query(Announcement).filter(
+        Announcement.publish_date <= today_date,
+        Announcement.expiry_date >= today_date
+    )
+    
+    # Filter based on role
+    if current_user.role == "Student":
+        profile = db.query(StudentProfile).filter(StudentProfile.user_id == current_user.id).first()
+        if profile:
+            dept = profile.class_section.split("-")[0] if "-" in profile.class_section else "CS"
+            sec_part = profile.class_section.split("-")[1] if "-" in profile.class_section else profile.class_section
+            year = "All"
+            section = "All"
+            if len(sec_part) >= 3 and sec_part.startswith("Y"):
+                year = sec_part[1]
+                section = sec_part[2:]
+            
+            query = query.filter(
+                (Announcement.target_department == "All") | (Announcement.target_department == dept),
+                (Announcement.target_year == "All") | (Announcement.target_year == year),
+                (Announcement.target_section == "All") | (Announcement.target_section == section)
+            )
+        else:
+            return []
+    elif current_user.role == "Parent":
+        profile = db.query(StudentProfile).filter(StudentProfile.parent_id == current_user.id).first()
+        if profile:
+            dept = profile.class_section.split("-")[0] if "-" in profile.class_section else "CS"
+            sec_part = profile.class_section.split("-")[1] if "-" in profile.class_section else profile.class_section
+            year = "All"
+            section = "All"
+            if len(sec_part) >= 3 and sec_part.startswith("Y"):
+                year = sec_part[1]
+                section = sec_part[2:]
+            
+            query = query.filter(
+                (Announcement.target_department == "All") | (Announcement.target_department == dept),
+                (Announcement.target_year == "All") | (Announcement.target_year == year),
+                (Announcement.target_section == "All") | (Announcement.target_section == section)
+            )
+        else:
+            return []
+            
+    announcements = query.order_by(Announcement.created_at.desc()).all()
+    
+    out = []
+    for a in announcements:
+        out.append(AnnouncementOut(
+            id=a.id,
+            title=a.title,
+            description=a.description,
+            audio_url=a.audio_url,
+            created_by=a.created_by,
+            creator_name=a.creator.name if a.creator else "Unknown Creator",
+            role=a.role,
+            target_department=a.target_department,
+            target_year=a.target_year,
+            target_section=a.target_section,
+            priority=a.priority,
+            publish_date=a.publish_date,
+            expiry_date=a.expiry_date,
+            created_at=a.created_at
+        ))
+    return out
+
+@app.post("/api/announcements", response_model=AnnouncementOut)
+def create_announcement(data: AnnouncementCreate, db: Session = Depends(get_db), current_user: User = Depends(check_role(["Faculty", "HOD"]))):
+    pub_date = data.publish_date or date.today()
+    exp_date = data.expiry_date or (pub_date + timedelta(days=7))
+    
+    announcement = Announcement(
+        title=data.title,
+        description=data.description,
+        created_by=current_user.id,
+        role=current_user.role,
+        target_department=data.target_department,
+        target_year=data.target_year,
+        target_section=data.target_section,
+        priority=data.priority,
+        publish_date=pub_date,
+        expiry_date=exp_date
+    )
+    
+    db.add(announcement)
+    db.commit()
+    db.refresh(announcement)
+    
+    return AnnouncementOut(
+        id=announcement.id,
+        title=announcement.title,
+        description=announcement.description,
+        audio_url=announcement.audio_url,
+        created_by=announcement.created_by,
+        creator_name=current_user.name,
+        role=announcement.role,
+        target_department=announcement.target_department,
+        target_year=announcement.target_year,
+        target_section=announcement.target_section,
+        priority=announcement.priority,
+        publish_date=announcement.publish_date,
+        expiry_date=announcement.expiry_date,
+        created_at=announcement.created_at
+    )
+
+@app.delete("/api/announcements/{id}")
+def delete_announcement(id: int, db: Session = Depends(get_db), current_user: User = Depends(check_role(["Faculty", "HOD"]))):
+    announcement = db.query(Announcement).filter(Announcement.id == id).first()
+    if not announcement:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+        
+    if announcement.audio_url:
+        audio_path = os.path.join(BASE_DIR, announcement.audio_url)
+        if os.path.exists(audio_path):
+            try:
+                os.remove(audio_path)
+            except Exception:
+                pass
+                
+    db.delete(announcement)
+    db.commit()
+    return {"status": "success", "message": "Announcement deleted successfully"}
+
+@app.post("/api/announcements/{id}/tts")
+def generate_announcement_tts(id: int, db: Session = Depends(get_db), current_user: User = Depends(check_role(["Faculty", "HOD"]))):
+    announcement = db.query(Announcement).filter(Announcement.id == id).first()
+    if not announcement:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+        
+    filename = f"announcement_{announcement.id}.mp3"
+    relative_path = os.path.join("data", "announcements", filename)
+    absolute_path = os.path.join(BASE_DIR, relative_path)
+    
+    from src.tts_service import generate_voice_file
+    text_to_speak = f"Announcement: {announcement.title}. {announcement.description}"
+    
+    success = generate_voice_file(text_to_speak, absolute_path)
+    if success:
+        announcement.audio_url = relative_path
+        db.commit()
+        return {"status": "success", "audio_url": relative_path}
+    else:
+        raise HTTPException(status_code=500, detail="Failed to generate text-to-speech audio")
+
+@app.get("/api/announcements/audio/{filename}")
+def get_announcement_audio(filename: str):
+    audio_path = os.path.join(BASE_DIR, "data", "announcements", filename)
+    if not os.path.exists(audio_path):
+        raise HTTPException(status_code=404, detail="Audio file not found")
+    return FileResponse(audio_path, media_type="audio/mpeg")
