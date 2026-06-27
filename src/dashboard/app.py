@@ -658,7 +658,7 @@ def auth_page():
                         st.session_state.username = user.username
                         st.session_state.user_id = user.id
                         st.session_state.name = user.name
-                        st.session_state.department = user.department or "CSE"
+                        st.session_state.department = user.department or "CS"
                         st.success(f"Welcome, {user.name}!")
                         st.rerun()
                     else:
@@ -1053,7 +1053,7 @@ def render_announcement_hub(db, current_user):
             publish_date = st.date_input("Publish Date", date.today())
             
         with col2:
-            target_dept = st.selectbox("Target Department", ["All", "CSE", "ECE", "EEE", "DS", "AIML", "CS"])
+            target_dept = st.selectbox("Target Department", ["All", "CS", "ECE", "DS", "AIML", "MECH", "EEE"])
             target_year = st.selectbox("Target Year", ["All", "1", "2", "3", "4"])
             target_sec = st.selectbox("Target Section", ["All", "A", "B", "C"])
             expiry_date = st.date_input("Expiry Date", date.today() + timedelta(days=7))
@@ -1226,7 +1226,7 @@ def render_announcements_viewer(db, student_profile):
         Announcement.expiry_date >= today_date
     )
     
-    dept = student_profile.class_section.split("-")[0] if "-" in student_profile.class_section else "CSE"
+    dept = student_profile.class_section.split("-")[0] if "-" in student_profile.class_section else "CS"
     sec_part = student_profile.class_section.split("-")[1] if "-" in student_profile.class_section else student_profile.class_section
     year = "All"
     section = "All"
@@ -1494,7 +1494,7 @@ elif st.session_state.user_role == "Faculty":
         
         # Dropdown selection of students
         # Filter students to only show those in the faculty's department
-        faculty_dept = st.session_state.get("department", "CSE")
+        faculty_dept = st.session_state.get("department", "CS")
         student_list = db.query(StudentProfile).filter(
             StudentProfile.class_section.like(f"{faculty_dept}-%")
         ).all()
@@ -1646,11 +1646,11 @@ elif st.session_state.user_role == "Faculty":
 
 # ==================== HOD PORTAL ====================
 elif st.session_state.user_role == "HOD":
-    st.title(f"🏛️ {st.session_state.get('department', 'CSE')} Department — HOD Analytics Dashboard")
+    st.title(f"🏛️ {st.session_state.get('department', 'CS')} Department — HOD Analytics Dashboard")
     
     # 1. Overview stats
     # Filter students to only show those in the HOD's department
-    hod_dept = st.session_state.get("department", "CSE")
+    hod_dept = st.session_state.get("department", "CS")
     student_list = db.query(StudentProfile).filter(
         StudentProfile.class_section.like(f"{hod_dept}-%")
     ).all()
@@ -1720,14 +1720,15 @@ elif st.session_state.user_role == "HOD":
                 
                 # Dynamic HOD and Department lookup
                 DEPT_MAP = {
-                    "CSE": "Computer Science Engineering",
-                    "ECE": "Electronic Communication Engineering",
-                    "EEE": "Electrical Electronic Engineering",
+                    "CS": "Computer Science",
+                    "ECE": "Electronics & Communication Engineering",
+                    "EEE": "Electrical & Electronics Engineering",
                     "DS": "Data Science",
-                    "AIML": "Artificial Intelligence",
-                    "CS": "Cyber Security"
+                    "AIML": "Artificial Intelligence & Machine Learning",
+                    "MECH": "Mechanical Engineering",
+                    "CSE": "Computer Science Engineering",
                 }
-                dept_code = student.class_section.split("-")[0] if (student.class_section and "-" in student.class_section) else "CSE"
+                dept_code = student.class_section.split("-")[0] if (student.class_section and "-" in student.class_section) else "CS"
                 dept_name = DEPT_MAP.get(dept_code, "Computer Science & Engineering")
                 hod_name = st.session_state.name if st.session_state.name else "Head of Department"
                 
