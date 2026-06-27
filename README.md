@@ -87,6 +87,13 @@ Fill in `college_data_template.xlsx` with your college data. The workbook has th
 
 > **Important:** The system reads sheets **by position (index)**, so do not add, remove, or reorder sheets.
 
+#### Student Section Format (`class_section`)
+When seeding the database, the system automatically reads `department_code`, `year`, and `section` from the Students sheet and generates a consolidated class section in the format:
+```text
+{department_code}-Y{year}{section}  (e.g., CS-Y1A, ECE-Y4A)
+```
+This specific formatting matches the pattern expected by the **Announcement Hub** in the student portal, allowing announcements targeted at specific years or sections to filter and display correctly.
+
 ### 3. Initialize Database & Train Models
 
 ```bash
