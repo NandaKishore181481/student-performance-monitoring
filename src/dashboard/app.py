@@ -539,7 +539,7 @@ def auth_page():
             <span style='font-size: 2.5rem; line-height: 1;'>🧠</span>
         </div>
         <h1>EduInsight AI</h1>
-        <p class='text-muted'>Student Performance Monitoring & Alert System</p>
+        <p class='text-muted'>AI Based Academic Monitoring & Alert System</p>
     </div>
     """, unsafe_allow_html=True)
     
