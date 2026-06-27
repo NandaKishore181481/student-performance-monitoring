@@ -658,6 +658,7 @@ def auth_page():
                         st.session_state.username = user.username
                         st.session_state.user_id = user.id
                         st.session_state.name = user.name
+                        st.session_state.department = user.department or "CS"
                         st.success(f"Welcome, {user.name}!")
                         st.rerun()
                     else:
@@ -1417,79 +1418,74 @@ elif st.session_state.user_role == "Parent":
     st.title("👪 Parent Dashboard")
     st.write(f"Logged in as parent for student: **{student_profile.user.name}** (Roll Number: **{student_profile.roll_number}**)")
     
-    tab1, tab2 = st.tabs(["📊 Ward Analytics", "📢 Announcements"])
-    
-    with tab1:
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
-            st.metric("Child Attendance", f"{student_profile.attendance_pct:.1f}%")
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-        with c2:
-            st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
-            ml_data = get_student_ml_data(student_profile)
-            pred = predict_student_risk(ml_data)
-            st.write("AI-generated Academic Risk Evaluation:")
-            status_class = "status-low" if pred["risk_label"] == "Low" else ("status-medium" if pred["risk_label"] == "Medium" else "status-high")
-            st.markdown(f"<span class='{status_class}'>{pred['risk_label']} Risk ({pred['risk_score']:.1f}/100)</span>", unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-        # Notification logs
+    c1, c2 = st.columns(2)
+    with c1:
         st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
-        st.subheader("Notification & Alert Log History")
-        alerts = db.query(AlertLog).filter(AlertLog.student_id == student_profile.id).order_by(AlertLog.timestamp.desc()).all()
-        if alerts:
-            alert_data = [{"Timestamp": a.timestamp.strftime("%Y-%m-%d %H:%M"), "Type": a.type, "Message Content": a.message, "Status": a.status} for a in alerts]
-            st.dataframe(pd.DataFrame(alert_data), use_container_width=True)
-        else:
-            st.write("No notifications dispatched to parent accounts this term.")
+        st.metric("Child Attendance", f"{student_profile.attendance_pct:.1f}%")
         st.markdown("</div>", unsafe_allow_html=True)
-
-        # Telegram Bot Onboarding Call to Action
-        st.markdown(f"""
-        <div class='premium-card' style='border-left: 4px solid #0088cc; background: rgba(0, 136, 204, 0.05); margin-top: 20px;'>
-            <h4 style='color: #0088cc; margin-top: 0; font-family: "Plus Jakarta Sans", sans-serif; font-weight: 700;'>✈️ Receive Instant Telegram Alerts</h4>
-            <p style='margin-bottom: 12px; font-size: 0.95rem;'>To receive free academic status alerts and attendance warnings instantly on your mobile phone, please click the button below and tap <b>Start</b> in your Telegram app:</p>
-            <a href="https://t.me/eduinsights_ai_bot" target="_blank" style="text-decoration: none;">
-                <button style="background: linear-gradient(135deg, #0088cc 0%, #00a6ff 100%) !important; color: white !important; border: none !important; border-radius: 8px !important; padding: 10px 20px !important; font-weight: 600 !important; cursor: pointer !important; box-shadow: 0 4px 10px rgba(0, 136, 204, 0.2) !important;">
-                    💬 Start Telegram Bot
-                </button>
-            </a>
-        </div>
-        """, unsafe_allow_html=True)
         
-        # Configure Telegram settings card
-        with st.expander("⚙️ Configure your Telegram Alerts Connection"):
-            st.markdown("""
-            To connect your account to our Telegram bot:
-            1. Click the **Start Telegram Bot** button above (tap **Start** in Telegram).
-            2. Get your unique numeric **Chat ID** (find it by sending a message to `@userinfobot` on Telegram).
-            3. Paste your Chat ID below and click **Save Connection Settings**.
-            """)
-            parent_phone = student_profile.parent.phone if (student_profile.parent and student_profile.parent.phone) else ""
-            default_chat_id = parent_phone if (parent_phone and not parent_phone.startswith("910000")) else ""
-            new_chat_id = st.text_input("Enter your Telegram Chat ID", value=default_chat_id, placeholder="e.g. 1688994372", key="parent_tg_chat_id")
-            
-            if st.button("Save Connection Settings", use_container_width=True, key="btn_save_tg_chat_id"):
-                if new_chat_id:
-                    # Save to database
-                    parent_user = db.query(User).filter(User.id == student_profile.parent_id).first()
-                    if parent_user:
-                        parent_user.phone = new_chat_id
-                        db.commit()
-                        st.success("✅ Telegram Chat ID updated successfully! You will now receive alerts directly here.")
-                        st.rerun()
-                else:
-                    st.warning("Please enter a valid Chat ID.")
-                    
-    with tab2:
-        render_announcements_viewer(db, student_profile)
+    with c2:
+        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+        ml_data = get_student_ml_data(student_profile)
+        pred = predict_student_risk(ml_data)
+        st.write("AI-generated Academic Risk Evaluation:")
+        status_class = "status-low" if pred["risk_label"] == "Low" else ("status-medium" if pred["risk_label"] == "Medium" else "status-high")
+        st.markdown(f"<span class='{status_class}'>{pred['risk_label']} Risk ({pred['risk_score']:.1f}/100)</span>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+        
+    # Notification logs
+    st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+    st.subheader("Notification & Alert Log History")
+    alerts = db.query(AlertLog).filter(AlertLog.student_id == student_profile.id).order_by(AlertLog.timestamp.desc()).all()
+    if alerts:
+        alert_data = [{"Timestamp": a.timestamp.strftime("%Y-%m-%d %H:%M"), "Type": a.type, "Message Content": a.message, "Status": a.status} for a in alerts]
+        st.dataframe(pd.DataFrame(alert_data), use_container_width=True)
+    else:
+        st.write("No notifications dispatched to parent accounts this term.")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # Telegram Bot Onboarding Call to Action
+    st.markdown(f"""
+    <div class='premium-card' style='border-left: 4px solid #0088cc; background: rgba(0, 136, 204, 0.05); margin-top: 20px;'>
+        <h4 style='color: #0088cc; margin-top: 0; font-family: "Plus Jakarta Sans", sans-serif; font-weight: 700;'>✈️ Receive Instant Telegram Alerts</h4>
+        <p style='margin-bottom: 12px; font-size: 0.95rem;'>To receive free academic status alerts and attendance warnings instantly on your mobile phone, please click the button below and tap <b>Start</b> in your Telegram app:</p>
+        <a href="https://t.me/eduinsights_ai_bot" target="_blank" style="text-decoration: none;">
+            <button style="background: linear-gradient(135deg, #0088cc 0%, #00a6ff 100%) !important; color: white !important; border: none !important; border-radius: 8px !important; padding: 10px 20px !important; font-weight: 600 !important; cursor: pointer !important; box-shadow: 0 4px 10px rgba(0, 136, 204, 0.2) !important;">
+                💬 Start Telegram Bot
+            </button>
+        </a>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Configure Telegram settings card
+    with st.expander("⚙️ Configure your Telegram Alerts Connection"):
+        st.markdown("""
+        To connect your account to our Telegram bot:
+        1. Click the **Start Telegram Bot** button above (tap **Start** in Telegram).
+        2. Get your unique numeric **Chat ID** (find it by sending a message to `@userinfobot` on Telegram).
+        3. Paste your Chat ID below and click **Save Connection Settings**.
+        """)
+        parent_phone = student_profile.parent.phone if (student_profile.parent and student_profile.parent.phone) else ""
+        default_chat_id = parent_phone if (parent_phone and not parent_phone.startswith("910000")) else ""
+        new_chat_id = st.text_input("Enter your Telegram Chat ID", value=default_chat_id, placeholder="e.g. 1688994372", key="parent_tg_chat_id")
+        
+        if st.button("Save Connection Settings", use_container_width=True, key="btn_save_tg_chat_id"):
+            if new_chat_id:
+                # Save to database
+                parent_user = db.query(User).filter(User.id == student_profile.parent_id).first()
+                if parent_user:
+                    parent_user.phone = new_chat_id
+                    db.commit()
+                    st.success("✅ Telegram Chat ID updated successfully! You will now receive alerts directly here.")
+                    st.rerun()
+            else:
+                st.warning("Please enter a valid Chat ID.")
 
 
 # ==================== FACULTY PORTAL ====================
 elif st.session_state.user_role == "Faculty":
-    st.title("👩‍🏫 Faculty Portal")
+    faculty_dept_display = st.session_state.get("department", "CS")
+    st.title(f"👩‍🏫 Faculty Portal — {faculty_dept_display} Department")
     
     tab1, tab2, tab3, tab4 = st.tabs(["📊 Grades & Attendance Input", "📷 OpenCV Face Attendance", "📝 OCR Marks Upload", "📢 Publish Announcements"])
     
@@ -1497,7 +1493,11 @@ elif st.session_state.user_role == "Faculty":
         st.subheader("Student Grades & remarks Management")
         
         # Dropdown selection of students
-        student_list = db.query(StudentProfile).all()
+        # Filter students to only show those in the faculty's department
+        faculty_dept = st.session_state.get("department", "CS")
+        student_list = db.query(StudentProfile).filter(
+            StudentProfile.class_section.like(f"{faculty_dept}-%")
+        ).all()
         selected_stud = st.selectbox("Select Student", student_list, format_func=lambda x: f"{x.user.name} ({x.roll_number})")
         
         if selected_stud:
@@ -1646,10 +1646,14 @@ elif st.session_state.user_role == "Faculty":
 
 # ==================== HOD PORTAL ====================
 elif st.session_state.user_role == "HOD":
-    st.title("🏛️ Department HOD Analytics Dashboard")
+    st.title(f"🏛️ {st.session_state.get('department', 'CS')} Department — HOD Analytics Dashboard")
     
     # 1. Overview stats
-    student_list = db.query(StudentProfile).all()
+    # Filter students to only show those in the HOD's department
+    hod_dept = st.session_state.get("department", "CS")
+    student_list = db.query(StudentProfile).filter(
+        StudentProfile.class_section.like(f"{hod_dept}-%")
+    ).all()
     n_students = len(student_list)
     avg_dept_attendance = sum(s.attendance_pct for s in student_list) / n_students if n_students else 0.0
     

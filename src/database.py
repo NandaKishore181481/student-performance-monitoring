@@ -33,9 +33,15 @@ def get_db_path():
                 conn = sqlite3.connect(writable_db_path)
                 cursor = conn.cursor()
                 cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='announcements'")
-                exists = cursor.fetchone()
+                ann_exists = cursor.fetchone()
+                
+                # Check if department column exists in users table
+                cursor.execute("PRAGMA table_info(users)")
+                cols = [row[1] for row in cursor.fetchall()]
+                dept_exists = "department" in cols
                 conn.close()
-                if not exists:
+                
+                if not ann_exists or not dept_exists:
                     os.remove(writable_db_path)
             except Exception:
                 pass
@@ -99,6 +105,7 @@ class User(Base):
     name = Column(String, nullable=False)
     email = Column(String, unique=True, nullable=False)
     phone = Column(String, nullable=True)
+    department = Column(String, nullable=True)  # 'CS', 'ECE', 'MECH', 'DS', 'AIML'
     
     # Relationships
     student_profile = relationship("StudentProfile", back_populates="user", uselist=False, foreign_keys="StudentProfile.user_id")
@@ -235,7 +242,8 @@ def seed_database():
             role="HOD",
             name="Dr. Eleanor Vance",
             email="hod.cs@university.edu",
-            phone="+1555010099"
+            phone="+1555010099",
+            department="CS"
         )
         db.add(hod_user)
         
@@ -246,7 +254,8 @@ def seed_database():
             role="Faculty",
             name="Prof. Alan Turing",
             email="alan.turing@university.edu",
-            phone="+1555010088"
+            phone="+1555010088",
+            department="CS"
         )
         fac2 = User(
             username="faculty2",
@@ -254,7 +263,8 @@ def seed_database():
             role="Faculty",
             name="Dr. Grace Hopper",
             email="grace.hopper@university.edu",
-            phone="+1555010077"
+            phone="+1555010077",
+            department="CS"
         )
         db.add_all([fac1, fac2])
         db.commit()  # commit to get ids
