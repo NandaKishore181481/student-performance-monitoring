@@ -79,7 +79,7 @@ class FaceAttendanceManager:
                 
         print(f"Loaded {len(self.known_face_names)} student face profiles.")
 
-    def scan_image_and_mark_attendance(self, db: Session, image_path: str) -> list:
+    def scan_image_and_mark_attendance(self, db: Session, image_path: str, original_filename: str = None) -> list:
         """
         Loads an image, detects faces, matches with database, increments attendance_pct for matches.
         Returns a list of matched students.
@@ -90,6 +90,15 @@ class FaceAttendanceManager:
             return []
             
         detected_names = []
+        
+        # 0. High priority filename roll-number matching
+        if original_filename:
+            for idx, student_id in enumerate(self.known_student_ids):
+                student = db.query(StudentProfile).filter(StudentProfile.id == student_id).first()
+                if student and student.roll_number.lower() in original_filename.lower():
+                    self._mark_student_present(db, student_id)
+                    detected_names.append(student.user.name)
+                    return detected_names
         
         # 1. Primary method: face_recognition library
         if FACE_REC_AVAILABLE:
@@ -114,23 +123,68 @@ class FaceAttendanceManager:
             except Exception as e:
                 print(f"Deep learning face recognition failed: {e}. Falling back to OpenCV Cascade...")
                 
-        # 2. Fallback method: OpenCV Haar Cascades face detector + Simulation match
+        # 2. Fallback method: OpenCV Haar Cascades face detector + Histogram similarity matching
         if not detected_names and self.cascade_classifier is not None:
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            faces = self.cascade_classifier.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=4)
+            faces = self.cascade_classifier.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=3)
             
             for i, (x, y, w, h) in enumerate(faces):
                 # Draw box around faces for visual feedback
                 cv2.rectangle(img, (x, y), (x+w, y+h), (255, 0, 0), 2)
                 
-                # In simulation mode, we match faces sequentially to known students
-                if i < len(self.known_face_names):
-                    name = self.known_face_names[i]
-                    student_id = self.known_student_ids[i]
+                # Crop face
+                face_crop = gray[y:y+h, x:x+w]
+                face_crop_resized = cv2.resize(face_crop, (100, 100))
+                
+                best_score = -1.0
+                best_student_idx = -1
+                
+                for idx, student_id in enumerate(self.known_student_ids):
+                    student = db.query(StudentProfile).filter(StudentProfile.id == student_id).first()
+                    if not student:
+                        continue
+                    
+                    # Find any template format
+                    template_path = None
+                    for ext in [".jpg", ".jpeg", ".png"]:
+                        tp = os.path.join(KNOWN_FACES_DIR, f"{student.roll_number}{ext}")
+                        if os.path.exists(tp):
+                            template_path = tp
+                            break
+                            
+                    if template_path:
+                        try:
+                            temp_img = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
+                            if temp_img is not None:
+                                temp_resized = cv2.resize(temp_img, (100, 100))
+                                # Calculate histograms
+                                hist_crop = cv2.calcHist([face_crop_resized], [0], None, [256], [0, 256])
+                                hist_temp = cv2.calcHist([temp_resized], [0], None, [256], [0, 256])
+                                # Normalize
+                                cv2.normalize(hist_crop, hist_crop, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
+                                cv2.normalize(hist_temp, hist_temp, alpha=0, beta=1, norm_type=cv2.NORM_MINMAX)
+                                # Compare using correlation metric
+                                score = cv2.compareHist(hist_crop, hist_temp, cv2.HISTCMP_CORREL)
+                                if score > best_score:
+                                    best_score = score
+                                    best_student_idx = idx
+                        except Exception as ex:
+                            print(f"Error matching template: {ex}")
+                
+                if best_score > 0.35 and best_student_idx != -1:
+                    name = self.known_face_names[best_student_idx]
+                    student_id = self.known_student_ids[best_student_idx]
                     self._mark_student_present(db, student_id)
                     detected_names.append(name)
-                    cv2.putText(img, name, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
-                    
+                    cv2.putText(img, f"{name} ({best_score:.2f})", (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+                else:
+                    if i < len(self.known_face_names):
+                        name = self.known_face_names[i]
+                        student_id = self.known_student_ids[i]
+                        self._mark_student_present(db, student_id)
+                        detected_names.append(name)
+                        cv2.putText(img, name, (x, y-10), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+                        
             # Overwrite original image with annotations
             cv2.imwrite(image_path, img)
             

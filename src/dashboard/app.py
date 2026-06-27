@@ -1306,7 +1306,7 @@ elif st.session_state.user_role == "Faculty":
                 temp_img = np.zeros((480, 640, 3), dtype=np.uint8) + 120
                 cv2.imwrite(temp_path, temp_img)
                 
-            detected_names = manager.scan_image_and_mark_attendance(db, temp_path)
+            detected_names = manager.scan_image_and_mark_attendance(db, temp_path, original_filename=camera_file.name if camera_file else None)
             
             st.success(f"Scanning complete! Detected and marked present:")
             st.write(detected_names)
