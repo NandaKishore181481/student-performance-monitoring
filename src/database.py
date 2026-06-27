@@ -264,27 +264,67 @@ def seed_database():
             return
             
         dfs = pd.read_excel(excel_path, sheet_name=None)
+        sheet_list = list(dfs.values())
         
+        # 0: Instructions, 1: Departments, 2: Staff, 3: Students, 4: Marks, 5: Attendance
+        
+        # Extract HOD usernames from Departments sheet
+        hod_map = {}
+        if len(sheet_list) > 1:
+            dept_df = sheet_list[1]
+            dept_data = dept_df.iloc[1:].dropna(subset=["department_code"])
+            for _, row in dept_data.iterrows():
+                dept_code = str(row["department_code"]).strip()
+                hod_usr = str(row["hod_username"]).strip() if pd.notna(row["hod_username"]) else ""
+                if hod_usr:
+                    hod_map[dept_code] = hod_usr
+
         # 1. Staff
-        staff_df = dfs.get("👥 Staff")
-        if staff_df is not None:
+        created_hods = set()
+        if len(sheet_list) > 2:
+            staff_df = sheet_list[2]
             staff_data = staff_df.iloc[1:].dropna(subset=["username", "password"])
             for _, row in staff_data.iterrows():
+                usr = str(row["username"]).strip()
+                dept = str(row["department_code"]).strip()
+                
+                # Determine role: HOD if username matches the hod_username in Departments sheet
+                is_hod = (usr == hod_map.get(dept)) or ("HOD" in str(row["role"]).upper())
+                role_str = "HOD" if is_hod else "Faculty"
+                
+                if is_hod:
+                    created_hods.add(dept)
+                    
                 u = User(
-                    username=str(row["username"]).strip(),
+                    username=usr,
                     hashed_password=hash_password(str(row["password"]).strip()),
                     name=str(row["full_name"]).strip(),
                     email=str(row["email"]).strip() if pd.notna(row["email"]) else "",
                     phone=str(row["phone"]).strip() if pd.notna(row["phone"]) else "",
-                    role="HOD" if "HOD" in str(row["role"]).upper() else "Faculty",
-                    department=str(row["department_code"]).strip()
+                    role=role_str,
+                    department=dept
                 )
                 db.add(u)
             db.commit()
+            
+        # Create fallback HODs if they were missing from the Staff sheet
+        for dept_code, hod_usr in hod_map.items():
+            if dept_code not in created_hods:
+                fallback_hod = User(
+                    username=hod_usr,
+                    hashed_password=hash_password("hod123"),
+                    name=f"HOD {dept_code}",
+                    email=f"{hod_usr}@college.edu",
+                    phone="",
+                    role="HOD",
+                    department=dept_code
+                )
+                db.add(fallback_hod)
+        db.commit()
 
         # 2. Students & Parents
-        students_df = dfs.get("🎓 Students")
-        if students_df is not None:
+        if len(sheet_list) > 3:
+            students_df = sheet_list[3]
             student_data = students_df.iloc[1:].dropna(subset=["username", "password"])
             for _, row in student_data.iterrows():
                 p = User(
@@ -325,8 +365,8 @@ def seed_database():
             db.commit()
 
         # 3. Marks
-        marks_df = dfs.get("📊 Marks")
-        if marks_df is not None:
+        if len(sheet_list) > 4:
+            marks_df = sheet_list[4]
             marks_data = marks_df.iloc[1:].dropna(subset=["roll_number", "subject"])
             for _, row in marks_data.iterrows():
                 roll = str(row["roll_number"]).strip()
@@ -347,7 +387,8 @@ def seed_database():
             db.commit()
             
         # 4. Attendance
-        att_df = dfs.get("📅 Attendance")
+        if len(sheet_list) > 5:
+            att_df = sheet_list[5]
         if att_df is not None:
             att_data = att_df.iloc[1:].dropna(subset=["roll_number", "date"])
             for _, row in att_data.iterrows():
