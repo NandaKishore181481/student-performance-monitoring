@@ -1333,6 +1333,16 @@ elif st.session_state.user_role == "Faculty":
             if camera_file:
                 with open(temp_path, "wb") as f:
                     f.write(camera_file.getbuffer())
+                
+                # Un-mirror/horizontally flip the image if it is a live photo capture
+                if input_method == "📸 Take Live Photo":
+                    try:
+                        img = cv2.imread(temp_path)
+                        if img is not None:
+                            flipped_img = cv2.flip(img, 1)
+                            cv2.imwrite(temp_path, flipped_img)
+                    except Exception as e:
+                        print(f"Error flipping camera image: {e}")
             else:
                 # Mock scanning image
                 temp_img = np.zeros((480, 640, 3), dtype=np.uint8) + 120
