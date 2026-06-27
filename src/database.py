@@ -352,7 +352,14 @@ def seed_database():
                 # Check for string "nan" because pandas astype(str) sometimes creates "nan" strings
                 raw_att = row["attendance_pct"]
                 att = float(raw_att) if pd.notna(raw_att) and str(raw_att).lower() != "nan" else 0.0
-                sec = f"{str(row['department_code']).strip()}-{str(row['section']).strip()}"
+                
+                raw_year = row["year"]
+                try:
+                    year_val = int(float(raw_year)) if pd.notna(raw_year) and str(raw_year).lower() != "nan" else 1
+                except:
+                    year_val = 1
+                    
+                sec = f"{str(row['department_code']).strip()}-Y{year_val}{str(row['section']).strip()}"
                 
                 profile = StudentProfile(
                     user_id=s.id,
