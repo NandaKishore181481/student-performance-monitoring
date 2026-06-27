@@ -1289,7 +1289,14 @@ elif st.session_state.user_role == "Faculty":
         st.write("Scan student classroom images or camera frames to auto-verify presence and update the database.")
         
         # File uploader
-        camera_file = st.file_uploader("Upload Classroom Image", type=["jpg", "png", "jpeg"])
+        # Input Method: File upload or Live camera capture
+        input_method = st.radio("Select Attendance Input Source", ["📁 Upload Image File", "📸 Take Live Photo"], horizontal=True)
+        
+        camera_file = None
+        if input_method == "📁 Upload Image File":
+            camera_file = st.file_uploader("Upload Classroom Image File", type=["jpg", "png", "jpeg"])
+        else:
+            camera_file = st.camera_input("Open Camera Viewer")
         
         if st.button("Run Face Scan Attendance", use_container_width=True):
             manager = FaceAttendanceManager()
