@@ -251,312 +251,124 @@ def seed_database():
             print("Database already seeded.")
             return
 
-        print("Seeding database...")
+        print("Seeding database from Excel template...")
+        import os
+        import pandas as pd
+        from datetime import date
         
-        # 1. Create HOD
-        hod_user = User(
-            username="hod",
-            hashed_password=hash_password("hod123"),
-            role="HOD",
-            name="Dr. Eleanor Vance",
-            email="hod.cse@university.edu",
-            phone="+1555010099",
-            department="CSE"
-        )
-        db.add(hod_user)
+        DB_DIR = os.path.dirname(os.path.abspath(__file__))
+        excel_path = os.path.join(os.path.dirname(DB_DIR), "college_data_template.xlsx")
         
-        # 2. Create Faculty
-        fac1 = User(
-            username="faculty1",
-            hashed_password=hash_password("fac123"),
-            role="Faculty",
-            name="Prof. Alan Turing",
-            email="alan.turing@university.edu",
-            phone="+1555010088",
-            department="CSE"
-        )
-        fac2 = User(
-            username="faculty2",
-            hashed_password=hash_password("fac123"),
-            role="Faculty",
-            name="Dr. Grace Hopper",
-            email="grace.hopper@university.edu",
-            phone="+1555010077",
-            department="CSE"
-        )
-        db.add_all([fac1, fac2])
-        db.commit()  # commit to get ids
-
-        # Additional HODs and Faculty for other departments
-        hod_ece = User(username="hod_ece", hashed_password=hash_password("hod123"), role="HOD", name="Dr. Ramesh Kumar", email="hod.ece@university.edu", phone="+1555020099", department="ECE")
-        hod_eee = User(username="hod_eee", hashed_password=hash_password("hod123"), role="HOD", name="Dr. Sunita Sharma", email="hod.eee@university.edu", phone="+1555030099", department="EEE")
-        hod_ds = User(username="hod_ds", hashed_password=hash_password("hod123"), role="HOD", name="Dr. Priya Nair", email="hod.ds@university.edu", phone="+1555040099", department="DS")
-        hod_aiml = User(username="hod_aiml", hashed_password=hash_password("hod123"), role="HOD", name="Dr. Vikram Singh", email="hod.aiml@university.edu", phone="+1555050099", department="AIML")
-        hod_cs = User(username="hod_cs", hashed_password=hash_password("hod123"), role="HOD", name="Dr. Kavitha Rao", email="hod.cybersec@university.edu", phone="+1555060099", department="CS")
-        db.add_all([hod_ece, hod_eee, hod_ds, hod_aiml, hod_cs])
-        
-        fac_ece = User(username="faculty_ece", hashed_password=hash_password("fac123"), role="Faculty", name="Prof. Suresh Reddy", email="suresh.reddy@university.edu", phone="+1555020088", department="ECE")
-        fac_eee = User(username="faculty_eee", hashed_password=hash_password("fac123"), role="Faculty", name="Prof. Lakshmi Devi", email="lakshmi.devi@university.edu", phone="+1555030088", department="EEE")
-        fac_ds = User(username="faculty_ds", hashed_password=hash_password("fac123"), role="Faculty", name="Prof. Arjun Mehta", email="arjun.mehta@university.edu", phone="+1555040088", department="DS")
-        fac_aiml = User(username="faculty_aiml", hashed_password=hash_password("fac123"), role="Faculty", name="Prof. Deepa Iyer", email="deepa.iyer@university.edu", phone="+1555050088", department="AIML")
-        fac_cs = User(username="faculty_cs", hashed_password=hash_password("fac123"), role="Faculty", name="Prof. Rajesh Pillai", email="rajesh.pillai@university.edu", phone="+1555060088", department="CS")
-        db.add_all([fac_ece, fac_eee, fac_ds, fac_aiml, fac_cs])
-        db.commit()
-
-        # 3. Create Parents
-        parents_data = [
-            # CSE parents
-            ("parent1", "parent123", "Mr. Arthur Doe", "arthur.doe@email.com", "+1555010011"),
-            ("parent2", "parent123", "Mrs. Mary Smith", "mary.smith@email.com", "+1555010022"),
-            ("parent3", "parent123", "Mr. Robert Johnson", "robert.johnson@email.com", "+1555010033"),
-            ("parent4", "parent123", "Mrs. Sarah Williams", "sarah.williams@email.com", "+1555010044"),
-            # ECE parents
-            ("parent5", "parent123", "Mr. Venkat Rao", "venkat.rao@email.com", "+1555020011"),
-            ("parent6", "parent123", "Mrs. Anitha Kumari", "anitha.kumari@email.com", "+1555020022"),
-            # EEE parents
-            ("parent7", "parent123", "Mr. Mohan Das", "mohan.das@email.com", "+1555030011"),
-            ("parent8", "parent123", "Mrs. Radha Krishnan", "radha.krishnan@email.com", "+1555030022"),
-            # DS parents
-            ("parent9", "parent123", "Mr. Sanjay Gupta", "sanjay.gupta@email.com", "+1555040011"),
-            ("parent10", "parent123", "Mrs. Meena Patel", "meena.patel@email.com", "+1555040022"),
-            # AIML parents
-            ("parent11", "parent123", "Mr. Karthik Subramanian", "karthik.sub@email.com", "+1555050011"),
-            ("parent12", "parent123", "Mrs. Divya Nandini", "divya.nandini@email.com", "+1555050022"),
-            # CS (Cyber Security) parents
-            ("parent13", "parent123", "Mr. Anil Verma", "anil.verma@email.com", "+1555060011"),
-            ("parent14", "parent123", "Mrs. Pooja Sinha", "pooja.sinha@email.com", "+1555060022"),
-        ]
-        parents_list = []
-        for username, password, name, email, phone in parents_data:
-            p = User(
-                username=username,
-                hashed_password=hash_password(password),
-                role="Parent",
-                name=name,
-                email=email,
-                phone=phone
-            )
-            db.add(p)
-            parents_list.append(p)
-        db.commit()
-
-        # 4. Create Students and Link Parents
-        students_data = [
-            # CSE students
-            ("student1", "student123", "John Doe", "john.doe@student.edu", "+1555010111", "ROLL001", "CSE-A", 62.5, parents_list[0].id),
-            ("student2", "student123", "Jane Smith", "jane.smith@student.edu", "+1555010222", "ROLL002", "CSE-A", 78.0, parents_list[1].id),
-            ("student3", "student123", "Bob Johnson", "bob.johnson@student.edu", "+1555010333", "ROLL003", "CSE-B", 91.5, parents_list[2].id),
-            ("student4", "student123", "Alice Williams", "alice.williams@student.edu", "+1555010444", "ROLL004", "CSE-B", 96.0, parents_list[3].id),
-            # ECE students
-            ("student5", "student123", "Ravi Shankar", "ravi.shankar@student.edu", "+1555020111", "ROLL005", "ECE-A", 74.0, parents_list[4].id),
-            ("student6", "student123", "Sneha Reddy", "sneha.reddy@student.edu", "+1555020222", "ROLL006", "ECE-A", 85.5, parents_list[5].id),
-            # EEE students
-            ("student7", "student123", "Amit Kumar", "amit.kumar@student.edu", "+1555030111", "ROLL007", "EEE-A", 69.0, parents_list[6].id),
-            ("student8", "student123", "Priya Sharma", "priya.sharma@student.edu", "+1555030222", "ROLL008", "EEE-A", 88.0, parents_list[7].id),
-            # DS students
-            ("student9", "student123", "Rahul Verma", "rahul.verma@student.edu", "+1555040111", "ROLL009", "DS-A", 72.5, parents_list[8].id),
-            ("student10", "student123", "Anjali Nair", "anjali.nair@student.edu", "+1555040222", "ROLL010", "DS-A", 90.0, parents_list[9].id),
-            # AIML students
-            ("student11", "student123", "Deepak Patel", "deepak.patel@student.edu", "+1555050111", "ROLL011", "AIML-A", 67.5, parents_list[10].id),
-            ("student12", "student123", "Kavya Menon", "kavya.menon@student.edu", "+1555050222", "ROLL012", "AIML-A", 92.0, parents_list[11].id),
-            # CS (Cyber Security) students
-            ("student13", "student123", "Suresh Babu", "suresh.babu@student.edu", "+1555060111", "ROLL013", "CS-A", 70.0, parents_list[12].id),
-            ("student14", "student123", "Nithya Krishnan", "nithya.krishnan@student.edu", "+1555060222", "ROLL014", "CS-A", 87.5, parents_list[13].id),
-        ]
-        students_list = []
-        for username, password, name, email, phone, roll, sec, att, parent_id in students_data:
-            user = User(
-                username=username,
-                hashed_password=hash_password(password),
-                role="Student",
-                name=name,
-                email=email,
-                phone=phone
-            )
-            db.add(user)
-            db.commit()  # Commit to get user ID
+        if not os.path.exists(excel_path):
+            print(f"Excel file not found at {excel_path}. Skipping dynamic seed.")
+            return
             
-            profile = StudentProfile(
-                user_id=user.id,
-                parent_id=parent_id,
-                roll_number=roll,
-                class_section=sec,
-                attendance_pct=att
-            )
-            db.add(profile)
-            students_list.append(profile)
-        db.commit()
-
-        # Subjects: 'Mathematics', 'Science', 'English', 'History', 'Computer Science'
-        # 5. Add Academic Marks
-        # student1 (John Doe) - Low Marks (High Risk)
-        # student2 (Jane Smith) - Medium Marks (Medium Risk)
-        # student3 (Bob Johnson) - High Marks (Low Risk)
-        # student4 (Alice Williams) - High Marks (Low Risk)
-        subjects = ['Mathematics', 'Science', 'English', 'History', 'Computer Science']
+        dfs = pd.read_excel(excel_path, sheet_name=None)
         
-        # Marks ranges: internal_marks out of 30, assignment_scores out of 20, exam_marks out of 50
-        marks_data = {
-            students_list[0].id: [  # John Doe
-                ('Mathematics', 12.0, 8.0, 18.0),
-                ('Science', 14.0, 10.0, 22.0),
-                ('English', 18.0, 12.0, 28.0),
-                ('History', 15.0, 11.0, 25.0),
-                ('Computer Science', 11.0, 9.0, 19.0)
-            ],
-            students_list[1].id: [  # Jane Smith
-                ('Mathematics', 21.0, 14.0, 35.0),
-                ('Science', 18.0, 13.0, 31.0),
-                ('English', 22.0, 16.0, 38.0),
-                ('History', 20.0, 15.0, 34.0),
-                ('Computer Science', 24.0, 17.0, 42.0)
-            ],
-            students_list[2].id: [  # Bob Johnson
-                ('Mathematics', 28.0, 19.0, 47.0),
-                ('Science', 27.0, 18.0, 46.0),
-                ('English', 25.0, 17.0, 43.0),
-                ('History', 24.0, 16.0, 41.0),
-                ('Computer Science', 29.0, 19.0, 49.0)
-            ],
-            students_list[3].id: [  # Alice Williams
-                ('Mathematics', 29.0, 19.5, 48.0),
-                ('Science', 28.5, 19.0, 47.0),
-                ('English', 27.0, 18.0, 45.0),
-                ('History', 28.0, 19.0, 46.0),
-                ('Computer Science', 30.0, 20.0, 50.0)
-            ],
-            students_list[4].id: [  # Ravi Shankar (ECE)
-                ('Mathematics', 20.0, 13.0, 32.0),
-                ('Science', 22.0, 14.0, 36.0),
-                ('English', 19.0, 12.0, 30.0),
-                ('History', 17.0, 11.0, 28.0),
-                ('Computer Science', 18.0, 12.0, 29.0)
-            ],
-            students_list[5].id: [  # Sneha Reddy (ECE)
-                ('Mathematics', 26.0, 17.0, 44.0),
-                ('Science', 25.0, 16.0, 42.0),
-                ('English', 24.0, 15.0, 40.0),
-                ('History', 23.0, 15.0, 39.0),
-                ('Computer Science', 27.0, 18.0, 45.0)
-            ],
-            students_list[6].id: [  # Amit Kumar (EEE)
-                ('Mathematics', 15.0, 10.0, 24.0),
-                ('Science', 16.0, 11.0, 26.0),
-                ('English', 18.0, 12.0, 28.0),
-                ('History', 14.0, 9.0, 22.0),
-                ('Computer Science', 13.0, 8.0, 20.0)
-            ],
-            students_list[7].id: [  # Priya Sharma (EEE)
-                ('Mathematics', 27.0, 18.0, 46.0),
-                ('Science', 26.0, 17.0, 44.0),
-                ('English', 25.0, 16.0, 42.0),
-                ('History', 26.0, 17.0, 43.0),
-                ('Computer Science', 28.0, 19.0, 48.0)
-            ],
-            students_list[8].id: [  # Rahul Verma (DS)
-                ('Mathematics', 19.0, 13.0, 31.0),
-                ('Science', 20.0, 14.0, 33.0),
-                ('English', 21.0, 14.0, 34.0),
-                ('History', 18.0, 12.0, 29.0),
-                ('Computer Science', 22.0, 15.0, 36.0)
-            ],
-            students_list[9].id: [  # Anjali Nair (DS)
-                ('Mathematics', 28.0, 19.0, 47.0),
-                ('Science', 27.0, 18.0, 45.0),
-                ('English', 26.0, 17.0, 44.0),
-                ('History', 25.0, 16.0, 42.0),
-                ('Computer Science', 29.0, 19.0, 48.0)
-            ],
-            students_list[10].id: [  # Deepak Patel (AIML)
-                ('Mathematics', 16.0, 11.0, 25.0),
-                ('Science', 17.0, 12.0, 27.0),
-                ('English', 19.0, 13.0, 30.0),
-                ('History', 15.0, 10.0, 23.0),
-                ('Computer Science', 20.0, 14.0, 32.0)
-            ],
-            students_list[11].id: [  # Kavya Menon (AIML)
-                ('Mathematics', 28.0, 18.0, 46.0),
-                ('Science', 27.0, 17.0, 45.0),
-                ('English', 26.0, 18.0, 44.0),
-                ('History', 27.0, 18.0, 46.0),
-                ('Computer Science', 29.0, 19.0, 49.0)
-            ],
-            students_list[12].id: [  # Suresh Babu (CS - Cyber Security)
-                ('Mathematics', 18.0, 12.0, 29.0),
-                ('Science', 19.0, 13.0, 31.0),
-                ('English', 20.0, 14.0, 33.0),
-                ('History', 17.0, 11.0, 27.0),
-                ('Computer Science', 21.0, 14.0, 34.0)
-            ],
-            students_list[13].id: [  # Nithya Krishnan (CS - Cyber Security)
-                ('Mathematics', 26.0, 17.0, 43.0),
-                ('Science', 25.0, 16.0, 41.0),
-                ('English', 24.0, 15.0, 40.0),
-                ('History', 25.0, 16.0, 42.0),
-                ('Computer Science', 27.0, 18.0, 46.0)
-            ],
-        }
-
-        for student_id, sub_marks in marks_data.items():
-            for sub, inter, assign, exam in sub_marks:
-                m = AcademicMarks(
-                    student_id=student_id,
-                    subject=sub,
-                    internal_marks=inter,
-                    assignment_scores=assign,
-                    exam_marks=exam
+        # 1. Staff
+        staff_df = dfs.get("👥 Staff")
+        if staff_df is not None:
+            staff_data = staff_df.iloc[1:].dropna(subset=["username", "password"])
+            for _, row in staff_data.iterrows():
+                u = User(
+                    username=str(row["username"]).strip(),
+                    hashed_password=hash_password(str(row["password"]).strip()),
+                    name=str(row["full_name"]).strip(),
+                    email=str(row["email"]).strip() if pd.notna(row["email"]) else "",
+                    phone=str(row["phone"]).strip() if pd.notna(row["phone"]) else "",
+                    role="HOD" if "HOD" in str(row["role"]).upper() else "Faculty",
+                    department=str(row["department_code"]).strip()
                 )
-                db.add(m)
+                db.add(u)
+            db.commit()
 
-        # 6. Add Faculty Remarks
-        remarks_data = [
-            (students_list[0].id, fac1.id, "Very poor attendance and struggles to stay awake in Math class.", -0.6),
-            (students_list[0].id, fac2.id, "Struggles with assignments, needs urgent counseling.", -0.4),
-            (students_list[1].id, fac1.id, "Good participation but distracted at times.", 0.2),
-            (students_list[1].id, fac2.id, "Average academic performance. Can improve writing skills.", 0.1),
-            (students_list[2].id, fac1.id, "Excellent analytic skills. Top performer in Science.", 0.9),
-            (students_list[3].id, fac2.id, "Extremely diligent student. Demonstrates exceptional understanding.", 0.95),
-        ]
-        
-        for stud_id, fac_id, text, sent in remarks_data:
-            r = FacultyRemarks(
-                student_id=stud_id,
-                faculty_id=fac_id,
-                remark_text=text,
-                sentiment_score=sent
-            )
-            db.add(r)
+        # 2. Students & Parents
+        students_df = dfs.get("🎓 Students")
+        if students_df is not None:
+            student_data = students_df.iloc[1:].dropna(subset=["username", "password"])
+            for _, row in student_data.iterrows():
+                p = User(
+                    username=str(row["username"]).strip() + "_parent",
+                    hashed_password=hash_password(str(row["password"]).strip()),
+                    name=str(row["parent_name"]).strip() if pd.notna(row["parent_name"]) else "Parent",
+                    email=str(row["parent_email"]).strip() if pd.notna(row["parent_email"]) else "",
+                    phone=str(row["parent_phone"]).strip() if pd.notna(row["parent_phone"]) else "",
+                    role="Parent"
+                )
+                db.add(p)
+                db.commit()
+                
+                s = User(
+                    username=str(row["username"]).strip(),
+                    hashed_password=hash_password(str(row["password"]).strip()),
+                    name=str(row["full_name"]).strip(),
+                    email=str(row["email"]).strip() if pd.notna(row["email"]) else "",
+                    phone=str(row["phone"]).strip() if pd.notna(row["phone"]) else "",
+                    role="Student"
+                )
+                db.add(s)
+                db.commit()
+                
+                # Check for string "nan" because pandas astype(str) sometimes creates "nan" strings
+                raw_att = row["attendance_pct"]
+                att = float(raw_att) if pd.notna(raw_att) and str(raw_att).lower() != "nan" else 0.0
+                sec = f"{str(row['department_code']).strip()}-{str(row['section']).strip()}"
+                
+                profile = StudentProfile(
+                    user_id=s.id,
+                    parent_id=p.id,
+                    roll_number=str(row["roll_number"]).strip(),
+                    class_section=sec,
+                    attendance_pct=att
+                )
+                db.add(profile)
+            db.commit()
 
-        # 7. Add Assignments
-        today = date.today()
-        assignments_data = [
-            # John Doe (student1)
-            (students_list[0].id, "Calculus Practice Sheet", "Mathematics", today - timedelta(days=5), "Submitted", 60.0),
-            (students_list[0].id, "Physics Lab Report 1", "Science", today - timedelta(days=2), "Pending", None),
-            (students_list[0].id, "Database Design Project", "Computer Science", today + timedelta(days=3), "Pending", None),
-            # Jane Smith (student2)
-            (students_list[1].id, "Calculus Practice Sheet", "Mathematics", today - timedelta(days=5), "Submitted", 85.0),
-            (students_list[1].id, "Physics Lab Report 1", "Science", today - timedelta(days=2), "Submitted", 78.0),
-            (students_list[1].id, "Database Design Project", "Computer Science", today + timedelta(days=3), "Pending", None),
-            # Bob Johnson (student3)
-            (students_list[2].id, "Calculus Practice Sheet", "Mathematics", today - timedelta(days=5), "Submitted", 98.0),
-            (students_list[2].id, "Physics Lab Report 1", "Science", today - timedelta(days=2), "Submitted", 95.0),
-            (students_list[2].id, "Database Design Project", "Computer Science", today + timedelta(days=3), "Submitted", 96.0),
-        ]
+        # 3. Marks
+        marks_df = dfs.get("📊 Marks")
+        if marks_df is not None:
+            marks_data = marks_df.iloc[1:].dropna(subset=["roll_number", "subject"])
+            for _, row in marks_data.iterrows():
+                roll = str(row["roll_number"]).strip()
+                profile = db.query(StudentProfile).filter(StudentProfile.roll_number == roll).first()
+                if profile:
+                    raw_inter = row["internal_marks"]
+                    raw_assign = row["assignment_scores"]
+                    raw_exam = row["exam_marks"]
+                    
+                    m = AcademicMarks(
+                        student_id=profile.id,
+                        subject=str(row["subject"]).strip(),
+                        internal_marks=float(raw_inter) if pd.notna(raw_inter) and str(raw_inter).lower() != "nan" else 0.0,
+                        assignment_scores=float(raw_assign) if pd.notna(raw_assign) and str(raw_assign).lower() != "nan" else 0.0,
+                        exam_marks=float(raw_exam) if pd.notna(raw_exam) and str(raw_exam).lower() != "nan" else 0.0
+                    )
+                    db.add(m)
+            db.commit()
+            
+        # 4. Attendance
+        att_df = dfs.get("📅 Attendance")
+        if att_df is not None:
+            att_data = att_df.iloc[1:].dropna(subset=["roll_number", "date"])
+            for _, row in att_data.iterrows():
+                roll = str(row["roll_number"]).strip()
+                profile = db.query(StudentProfile).filter(StudentProfile.roll_number == roll).first()
+                if profile:
+                    try:
+                        d = pd.to_datetime(row["date"]).date()
+                    except:
+                        d = date.today()
+                    
+                    record = AttendanceRecord(
+                        student_id=profile.id,
+                        date=d,
+                        subject=str(row["subject"]).strip(),
+                        status=str(row["status"]).strip()
+                    )
+                    db.add(record)
+            db.commit()
 
-        for stud_id, title, sub, due, status, score in assignments_data:
-            a = Assignment(
-                student_id=stud_id,
-                title=title,
-                subject=sub,
-                due_date=due,
-                status=status,
-                score=score
-            )
-            db.add(a)
-
-        db.commit()
-        print("Database seeded successfully!")
+        print("Database seeded successfully from Excel!")
     except Exception as e:
         db.rollback()
         print(f"Error seeding database: {e}")
