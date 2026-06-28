@@ -139,18 +139,31 @@ Example (from default template):
 
 Credentials come directly from the **Students sheet** in the Excel file.
 
-Example:
+Example (from default template):
 
 | Username | Password | Roll No | Section |
 |----------|----------|---------|---------|
-| `cs_john_2024` | `cs@2024` | 23r11a6201 | CS-A |
-| `23r11a60202` | `ece@2024` | 23r11a60202 | ECE-A |
+| `cs_john_2024` | `23r11a6201` | 23r11a6201 | CS-Y1A |
+| `cs_priya_2024` | `23r11a6202` | 23r11a6202 | CS-Y1A |
+| `23r11a60202` | `23r11a60203` | 23r11a60203 | ECE-Y4A |
+| `ds_peter_2024` | `23r11a6701` | 23r11a6701 | DS-Y1A |
+| `aiml_katherine_24` | `23r11a6601` | 23r11a6601 | AIML-Y1A |
 
 ### Parents
 
-Parent accounts are automatically created with the **same password as their child**, and their username is `<student_username>_parent`.
+Parent accounts are automatically created with the **same password as their child**. The username is `<student_username>_parent`.
 
-Example: student `cs_john_2024` → parent username `cs_john_2024_parent`, password `cs@2024`.
+Example (from default template):
+
+| Parent Username | Password | Child Username |
+|----------------|----------|----------------|
+| `cs_john_2024_parent` | `23r11a6201` | `cs_john_2024` |
+| `cs_priya_2024_parent` | `23r11a6202` | `cs_priya_2024` |
+| `23r11a60202_parent` | `23r11a60203` | `23r11a60202` |
+| `ds_peter_2024_parent` | `23r11a6701` | `ds_peter_2024` |
+| `aiml_katherine_24_parent` | `23r11a6601` | `aiml_katherine_24` |
+
+> **Note:** The parent username is always `<student_username>_parent` and the password is always the **same password as the student** (from the `password` column in the Students sheet).
 
 ---
 
