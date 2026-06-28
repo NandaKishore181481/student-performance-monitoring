@@ -1034,6 +1034,24 @@ status_emoji = "🟢 Writable" if db_writable else "🔴 Read-Only"
 st.sidebar.markdown(f"**Path:** `{DB_PATH}`")
 st.sidebar.markdown(f"**Status:** {status_emoji}")
 
+if st.session_state.get("user_role") == "HOD":
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### 🛠️ DB Administration")
+    if st.sidebar.button("♻️ Force Reset & Re-Seed", use_container_width=True, help="Deletes the database file and recreates it from the Excel template."):
+        with st.spinner("Resetting database from Excel..."):
+            from sqlalchemy.orm import close_all_sessions
+            from src.database import seed_database
+            import os
+            try:
+                close_all_sessions()
+                if os.path.exists(DB_PATH):
+                    os.remove(DB_PATH)
+                seed_database()
+                st.sidebar.success("✅ Database reset successfully!")
+                st.rerun()
+            except Exception as e:
+                st.sidebar.error(f"Error resetting: {e}")
+
 st.sidebar.markdown("---")
 
 def render_announcement_hub(db, current_user):
@@ -1318,168 +1336,176 @@ def get_student_ml_data(profile):
 # ==================== STUDENT PORTAL ====================
 if st.session_state.user_role == "Student":
     st.title("👨‍🎓 Student Dashboard")
-    st.write(f"Welcome back, **{st.session_state.name}** | Roll Number: **{student_profile.roll_number}** | Section: **{student_profile.class_section}**")
     
-    tab1, tab2 = st.tabs(["📊 Performance Dashboard", "📢 Announcements"])
-    
-    with tab1:
-        # 1. Row cards
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
-            st.metric("Attendance", f"{student_profile.attendance_pct:.1f}%", help="Required: 75%")
-            st.markdown("</div>", unsafe_allow_html=True)
-        with c2:
-            st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
-            # Predict risk
-            ml_data = get_student_ml_data(student_profile)
-            pred = predict_student_risk(ml_data)
-            risk = pred["risk_label"]
-            score = pred["risk_score"]
-            
-            status_class = "status-low" if risk == "Low" else ("status-medium" if risk == "Medium" else "status-high")
-            st.write("AI Risk Status:")
-            st.markdown(f"<span class='{status_class}'>{risk} Risk ({score:.1f}/100)</span>", unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
-        with c3:
-            st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
-            pass_prob = predict_exam_pass_probability(student_profile.attendance_pct, ml_data["internal_marks_avg"], ml_data["assignment_completion_rate"])
-            st.metric("Final Exam Pass Probability", f"{pass_prob*100:.1f}%")
-            st.markdown("</div>", unsafe_allow_html=True)
-            
-        # 2. Charts and explanations
-        col_left, col_right = st.columns([1.5, 1])
+    if not student_profile:
+        st.error("⚠️ No student profile is linked to this account. Please verify that your roll number is registered.")
+    else:
+        st.write(f"Welcome back, **{st.session_state.name}** | Roll Number: **{student_profile.roll_number}** | Section: **{student_profile.class_section}**")
         
-        with col_left:
-            st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
-            st.subheader("Academic Marks Trend")
-            
-            # Load marks
-            marks_records = student_profile.marks
-            if marks_records:
-                subjects = [m.subject for m in marks_records]
-                internals = [m.internal_marks for m in marks_records]
-                assignments = [m.assignment_scores for m in marks_records]
-                exams = [m.exam_marks or 0.0 for m in marks_records]
+        tab1, tab2 = st.tabs(["📊 Performance Dashboard", "📢 Announcements"])
+        
+        with tab1:
+            # 1. Row cards
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+                st.metric("Attendance", f"{student_profile.attendance_pct:.1f}%", help="Required: 75%")
+                st.markdown("</div>", unsafe_allow_html=True)
+            with c2:
+                st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+                # Predict risk
+                ml_data = get_student_ml_data(student_profile)
+                pred = predict_student_risk(ml_data)
+                risk = pred["risk_label"]
+                score = pred["risk_score"]
                 
-                fig = go.Figure(data=[
-                    go.Bar(name='Internals (30)', x=subjects, y=internals, marker_color='#3B82F6'),
-                    go.Bar(name='Assignments (20)', x=subjects, y=assignments, marker_color='#10B981'),
-                    go.Bar(name='Exams (50)', x=subjects, y=exams, marker_color='#8B5CF6')
-                ])
-                fig.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color=plotly_font_color)
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.warning("No grades recorded yet.")
-            st.markdown("</div>", unsafe_allow_html=True)
+                status_class = "status-low" if risk == "Low" else ("status-medium" if risk == "Medium" else "status-high")
+                st.write("AI Risk Status:")
+                st.markdown(f"<span class='{status_class}'>{risk} Risk ({score:.1f}/100)</span>", unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
+            with c3:
+                st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+                pass_prob = predict_exam_pass_probability(student_profile.attendance_pct, ml_data["internal_marks_avg"], ml_data["assignment_completion_rate"])
+                st.metric("Final Exam Pass Probability", f"{pass_prob*100:.1f}%")
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+            # 2. Charts and explanations
+            col_left, col_right = st.columns([1.5, 1])
             
-        with col_right:
+            with col_left:
+                st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+                st.subheader("Academic Marks Trend")
+                
+                # Load marks
+                marks_records = student_profile.marks
+                if marks_records:
+                    subjects = [m.subject for m in marks_records]
+                    internals = [m.internal_marks for m in marks_records]
+                    assignments = [m.assignment_scores for m in marks_records]
+                    exams = [m.exam_marks or 0.0 for m in marks_records]
+                    
+                    fig = go.Figure(data=[
+                        go.Bar(name='Internals (30)', x=subjects, y=internals, marker_color='#3B82F6'),
+                        go.Bar(name='Assignments (20)', x=subjects, y=assignments, marker_color='#10B981'),
+                        go.Bar(name='Exams (50)', x=subjects, y=exams, marker_color='#8B5CF6')
+                    ])
+                    fig.update_layout(barmode='stack', paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font_color=plotly_font_color)
+                    st.plotly_chart(fig, use_container_width=True)
+                else:
+                    st.warning("No grades recorded yet.")
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+            with col_right:
+                st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+                st.subheader("AI Performance Diagnostics")
+                explain = get_explainable_ai(ml_data)
+                
+                for r in explain["reasons"]:
+                    impact_color = "🔴" if "High" in r["impact"] else ("🟡" if "Moderate" in r["impact"] else "🟢")
+                    st.markdown(f"**{impact_color} {r['feature']}:** {r['value']} | *{r['impact']}*")
+                    st.caption(r["description"])
+                    st.write("")
+                st.markdown("</div>", unsafe_allow_html=True)
+                
+            # 3. Actions and Report
             st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
-            st.subheader("AI Performance Diagnostics")
-            explain = get_explainable_ai(ml_data)
+            st.subheader("Actionable Recommendations")
             
-            for r in explain["reasons"]:
-                impact_color = "🔴" if "High" in r["impact"] else ("🟡" if "Moderate" in r["impact"] else "🟢")
-                st.markdown(f"**{impact_color} {r['feature']}:** {r['value']} | *{r['impact']}*")
-                st.caption(r["description"])
-                st.write("")
+            if risk == "High":
+                st.error("Immediate attention required! Attendance and marks are critical. Attend remedial coaching sessions daily.")
+            elif risk == "Medium":
+                st.warning("Keep monitor on your grade trends and ensure assignments are submitted before deadline.")
+            else:
+                st.success("Great job! Keep up the excellent work. Consider mentoring fellow classmates.")
+                
+            # Report generation
+            if st.button("Download PDF Progress Report", use_container_width=True):
+                pdf_file = generate_student_pdf_report(db, student_profile.id)
+                with open(pdf_file, "rb") as f:
+                    st.download_button(
+                        label="Click here to save PDF",
+                        data=f,
+                        file_name=os.path.basename(pdf_file),
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
             st.markdown("</div>", unsafe_allow_html=True)
             
-        # 3. Actions and Report
-        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
-        st.subheader("Actionable Recommendations")
-        
-        if risk == "High":
-            st.error("Immediate attention required! Attendance and marks are critical. Attend remedial coaching sessions daily.")
-        elif risk == "Medium":
-            st.warning("Keep monitor on your grade trends and ensure assignments are submitted before deadline.")
-        else:
-            st.success("Great job! Keep up the excellent work. Consider mentoring fellow classmates.")
-            
-        # Report generation
-        if st.button("Download PDF Progress Report", use_container_width=True):
-            pdf_file = generate_student_pdf_report(db, student_profile.id)
-            with open(pdf_file, "rb") as f:
-                st.download_button(
-                    label="Click here to save PDF",
-                    data=f,
-                    file_name=os.path.basename(pdf_file),
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-    with tab2:
-        render_announcements_viewer(db, student_profile)
+        with tab2:
+            render_announcements_viewer(db, student_profile)
 
 
 # ==================== PARENT PORTAL ====================
 elif st.session_state.user_role == "Parent":
     st.title("👪 Parent Dashboard")
-    st.write(f"Logged in as parent for student: **{student_profile.user.name}** (Roll Number: **{student_profile.roll_number}**)")
     
-    c1, c2 = st.columns(2)
-    with c1:
-        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
-        st.metric("Child Attendance", f"{student_profile.attendance_pct:.1f}%")
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-    with c2:
-        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
-        ml_data = get_student_ml_data(student_profile)
-        pred = predict_student_risk(ml_data)
-        st.write("AI-generated Academic Risk Evaluation:")
-        status_class = "status-low" if pred["risk_label"] == "Low" else ("status-medium" if pred["risk_label"] == "Medium" else "status-high")
-        st.markdown(f"<span class='{status_class}'>{pred['risk_label']} Risk ({pred['risk_score']:.1f}/100)</span>", unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
-        
-    # Notification logs
-    st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
-    st.subheader("Notification & Alert Log History")
-    alerts = db.query(AlertLog).filter(AlertLog.student_id == student_profile.id).order_by(AlertLog.timestamp.desc()).all()
-    if alerts:
-        alert_data = [{"Timestamp": a.timestamp.strftime("%Y-%m-%d %H:%M"), "Type": a.type, "Message Content": a.message, "Status": a.status} for a in alerts]
-        st.dataframe(pd.DataFrame(alert_data), use_container_width=True)
+    if not student_profile:
+        st.error("⚠️ No student profile is linked to this parent account. If you just signed up, make sure your child registers first or contact the administrator to verify the roll number connection.")
     else:
-        st.write("No notifications dispatched to parent accounts this term.")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # Telegram Bot Onboarding Call to Action
-    st.markdown(f"""
-    <div class='premium-card' style='border-left: 4px solid #0088cc; background: rgba(0, 136, 204, 0.05); margin-top: 20px;'>
-        <h4 style='color: #0088cc; margin-top: 0; font-family: "Plus Jakarta Sans", sans-serif; font-weight: 700;'>✈️ Receive Instant Telegram Alerts</h4>
-        <p style='margin-bottom: 12px; font-size: 0.95rem;'>To receive free academic status alerts and attendance warnings instantly on your mobile phone, please click the button below and tap <b>Start</b> in your Telegram app:</p>
-        <a href="https://t.me/eduinsights_ai_bot" target="_blank" style="text-decoration: none;">
-            <button style="background: linear-gradient(135deg, #0088cc 0%, #00a6ff 100%) !important; color: white !important; border: none !important; border-radius: 8px !important; padding: 10px 20px !important; font-weight: 600 !important; cursor: pointer !important; box-shadow: 0 4px 10px rgba(0, 136, 204, 0.2) !important;">
-                💬 Start Telegram Bot
-            </button>
-        </a>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    # Configure Telegram settings card
-    with st.expander("⚙️ Configure your Telegram Alerts Connection"):
-        st.markdown("""
-        To connect your account to our Telegram bot:
-        1. Click the **Start Telegram Bot** button above (tap **Start** in Telegram).
-        2. Get your unique numeric **Chat ID** (find it by sending a message to `@userinfobot` on Telegram).
-        3. Paste your Chat ID below and click **Save Connection Settings**.
-        """)
-        parent_phone = student_profile.parent.phone if (student_profile.parent and student_profile.parent.phone) else ""
-        default_chat_id = parent_phone if (parent_phone and not parent_phone.startswith("910000")) else ""
-        new_chat_id = st.text_input("Enter your Telegram Chat ID", value=default_chat_id, placeholder="e.g. 1688994372", key="parent_tg_chat_id")
+        st.write(f"Logged in as parent for student: **{student_profile.user.name}** (Roll Number: **{student_profile.roll_number}**)")
         
-        if st.button("Save Connection Settings", use_container_width=True, key="btn_save_tg_chat_id"):
-            if new_chat_id:
-                # Save to database
-                parent_user = db.query(User).filter(User.id == student_profile.parent_id).first()
-                if parent_user:
-                    parent_user.phone = new_chat_id
-                    db.commit()
-                    st.success("✅ Telegram Chat ID updated successfully! You will now receive alerts directly here.")
-                    st.rerun()
-            else:
-                st.warning("Please enter a valid Chat ID.")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+            st.metric("Child Attendance", f"{student_profile.attendance_pct:.1f}%")
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+        with c2:
+            st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+            ml_data = get_student_ml_data(student_profile)
+            pred = predict_student_risk(ml_data)
+            st.write("AI-generated Academic Risk Evaluation:")
+            status_class = "status-low" if pred["risk_label"] == "Low" else ("status-medium" if pred["risk_label"] == "Medium" else "status-high")
+            st.markdown(f"<span class='{status_class}'>{pred['risk_label']} Risk ({pred['risk_score']:.1f}/100)</span>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+        # Notification logs
+        st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+        st.subheader("Notification & Alert Log History")
+        alerts = db.query(AlertLog).filter(AlertLog.student_id == student_profile.id).order_by(AlertLog.timestamp.desc()).all()
+        if alerts:
+            alert_data = [{"Timestamp": a.timestamp.strftime("%Y-%m-%d %H:%M"), "Type": a.type, "Message Content": a.message, "Status": a.status} for a in alerts]
+            st.dataframe(pd.DataFrame(alert_data), use_container_width=True)
+        else:
+            st.write("No notifications dispatched to parent accounts this term.")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # Telegram Bot Onboarding Call to Action
+        st.markdown(f"""
+        <div class='premium-card' style='border-left: 4px solid #0088cc; background: rgba(0, 136, 204, 0.05); margin-top: 20px;'>
+            <h4 style='color: #0088cc; margin-top: 0; font-family: "Plus Jakarta Sans", sans-serif; font-weight: 700;'>✈️ Receive Instant Telegram Alerts</h4>
+            <p style='margin-bottom: 12px; font-size: 0.95rem;'>To receive free academic status alerts and attendance warnings instantly on your mobile phone, please click the button below and tap <b>Start</b> in your Telegram app:</p>
+            <a href="https://t.me/eduinsights_ai_bot" target="_blank" style="text-decoration: none;">
+                <button style="background: linear-gradient(135deg, #0088cc 0%, #00a6ff 100%) !important; color: white !important; border: none !important; border-radius: 8px !important; padding: 10px 20px !important; font-weight: 600 !important; cursor: pointer !important; box-shadow: 0 4px 10px rgba(0, 136, 204, 0.2) !important;">
+                    💬 Start Telegram Bot
+                </button>
+            </a>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Configure Telegram settings card
+        with st.expander("⚙️ Configure your Telegram Alerts Connection"):
+            st.markdown("""
+            To connect your account to our Telegram bot:
+            1. Click the **Start Telegram Bot** button above (tap **Start** in Telegram).
+            2. Get your unique numeric **Chat ID** (find it by sending a message to `@userinfobot` on Telegram).
+            3. Paste your Chat ID below and click **Save Connection Settings**.
+            """)
+            parent_phone = student_profile.parent.phone if (student_profile.parent and student_profile.parent.phone) else ""
+            default_chat_id = parent_phone if (parent_phone and not parent_phone.startswith("910000")) else ""
+            new_chat_id = st.text_input("Enter your Telegram Chat ID", value=default_chat_id, placeholder="e.g. 1688994372", key="parent_tg_chat_id")
+            
+            if st.button("Save Connection Settings", use_container_width=True, key="btn_save_tg_chat_id"):
+                if new_chat_id:
+                    # Save to database
+                    parent_user = db.query(User).filter(User.id == student_profile.parent_id).first()
+                    if parent_user:
+                        parent_user.phone = new_chat_id
+                        db.commit()
+                        st.success("✅ Telegram Chat ID updated successfully! You will now receive alerts directly here.")
+                        st.rerun()
+                else:
+                    st.warning("Please enter a valid Chat ID.")
 
 
 # ==================== FACULTY PORTAL ====================

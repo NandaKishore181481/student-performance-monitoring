@@ -1,0 +1,17 @@
+username,password,role
+Unique login (no spaces),Default password,HOD or Faculty
+cs_prof_ramesh,cs123,Professor
+cs_prof_priya,cs124,Assistant Prof
+cs_prof_arjun,cs125,Assistant Prof
+cs_prof_siddhi,cs126,Professor
+ece_prof_anita,ece123,Professor
+ece_prof_meera,ece124,Professor
+ece_prof_anand,ece125,Professor
+mech_prof_rahul,mech123,Professor
+mech_prof_kiran,mech124,Associate Prof
+ds_prof_vikram,ds123,Associate Prof
+ds_prof_kavya,ds124,Associate Prof
+ds_prof_suresh,ds125,Associate Prof
+aiml_prof_sneha,aiml123,Professor
+aiml_prof_rohit,aiml124,Assistant Prof
+aiml_prof_meena,aiml125,Assistant Prof

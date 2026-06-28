@@ -1,0 +1,259 @@
+{
+  "\ud83d\udccb Instructions": [
+    {
+      "  \ud83c\udf93 College Data Import Template \u2014 Instructions": "nan",
+      "Unnamed: 1": "nan"
+    },
+    {
+      "  \ud83c\udf93 College Data Import Template \u2014 Instructions": "\ud83d\udccc OVERVIEW",
+      "Unnamed: 1": "nan"
+    },
+    {
+      "  \ud83c\udf93 College Data Import Template \u2014 Instructions": "nan",
+      "Unnamed: 1": "This workbook contains 4 sheets you must fill in before importing:"
+    },
+    {
+      "  \ud83c\udf93 College Data Import Template \u2014 Instructions": "nan",
+      "Unnamed: 1": "  1. 'Departments'   \u2014 list your departments (e.g. CS, ECE, Mech)"
+    },
+    {
+      "  \ud83c\udf93 College Data Import Template \u2014 Instructions": "nan",
+      "Unnamed: 1": "  2. 'Staff'         \u2014 HOD + Faculty names, emails, usernames"
+    }
+  ],
+  "\ud83c\udfdb Departments": [
+    {
+      "department_code": "Short code (e.g. CS)",
+      "department_name": "Full name (e.g. Computer Science)",
+      "hod_username": "Username of HOD from Staff sheet"
+    },
+    {
+      "department_code": "CS",
+      "department_name": "Computer Science",
+      "hod_username": "hod_cs"
+    },
+    {
+      "department_code": "ECE",
+      "department_name": "Electronics and Communication",
+      "hod_username": "hod_ece"
+    },
+    {
+      "department_code": "MECH",
+      "department_name": "Mechanical Engineering",
+      "hod_username": "hod_mech"
+    },
+    {
+      "department_code": "DS",
+      "department_name": "Data Science",
+      "hod_username": "hod_ds"
+    }
+  ],
+  "\ud83d\udc65 Staff": [
+    {
+      "username": "Unique login (no spaces)",
+      "password": "Default password",
+      "full_name": "Full name",
+      "email": "Email address",
+      "phone": "Phone (optional)",
+      "role": "HOD or Faculty",
+      "department_code": "From Departments sheet",
+      "subjects_taught": "Comma separated (Faculty only)",
+      "Column1": "nan"
+    },
+    {
+      "username": "cs_prof_ramesh",
+      "password": "cs123",
+      "full_name": "Dr. Ramesh Rao",
+      "email": "ramesh.rao@gcet.edu.in",
+      "phone": "9500000001",
+      "role": "Professor",
+      "department_code": "CS",
+      "subjects_taught": "Computer Science, Compiler Design",
+      "Column1": "nan"
+    },
+    {
+      "username": "cs_prof_priya",
+      "password": "cs124",
+      "full_name": "Prof. Priya Menon",
+      "email": "priya.menon@gcet.edu.in",
+      "phone": "9500000002",
+      "role": "Assistant Prof",
+      "department_code": "CS",
+      "subjects_taught": "Operating Systems, DBMS",
+      "Column1": "nan"
+    },
+    {
+      "username": "cs_prof_arjun",
+      "password": "cs125",
+      "full_name": "Prof. Arjun Patel",
+      "email": "arjun.patel@gcet.edu.in",
+      "phone": "9500000006",
+      "role": "Assistant Prof",
+      "department_code": "CS",
+      "subjects_taught": "Computer Networks, Cybersecurity",
+      "Column1": "nan"
+    },
+    {
+      "username": "cs_prof_siddhi",
+      "password": "cs126",
+      "full_name": "Dr. Siddhi Joshi",
+      "email": "siddhi.joshi@gcet.edu.in",
+      "phone": "9500000010",
+      "role": "Professor",
+      "department_code": "CS",
+      "subjects_taught": "Mathematics, Computer Science",
+      "Column1": "nan"
+    }
+  ],
+  "\ud83c\udf93 Students": [
+    {
+      "username": "Login ID",
+      "password": "Password",
+      "full_name": "Full name",
+      "email": "Student email",
+      "phone": "Student phone",
+      "roll_number": "Unique roll no.",
+      "department_code": "From Departments",
+      "year": "1/2/3/4",
+      "section": "A/B/C",
+      "attendance_pct": "0-100 (%)",
+      "parent_name": "Parent full name",
+      "parent_email": "Parent email",
+      "parent_phone": "Parent phone"
+    },
+    {
+      "username": "cs_john_2024",
+      "password": "23r11a6201",
+      "full_name": "John Raj",
+      "email": "23r11a6201@gcet.edu.in",
+      "phone": "9000000001",
+      "roll_number": "23r11a6201",
+      "department_code": "CS",
+      "year": "1",
+      "section": "A",
+      "attendance_pct": "85",
+      "parent_name": "Mr. A Raj",
+      "parent_email": "raj.parent@gmail.com",
+      "parent_phone": "9100000001"
+    },
+    {
+      "username": "cs_priya_2024",
+      "password": "23r11a6202",
+      "full_name": "Priya Kumar",
+      "email": "23r11a6202@gcet.edu.in",
+      "phone": "9000000002",
+      "roll_number": "23r11a6202",
+      "department_code": "CS",
+      "year": "1",
+      "section": "A",
+      "attendance_pct": "91",
+      "parent_name": "Mrs. K Kumar",
+      "parent_email": "kumar.family@yahoo.com",
+      "parent_phone": "9100000002"
+    },
+    {
+      "username": "cs_ravi_2023",
+      "password": "23r11a6203",
+      "full_name": "Ravi Shankar",
+      "email": "23r11a6203@gcet.edu.in",
+      "phone": "9000000003",
+      "roll_number": "23r11a6203",
+      "department_code": "CS",
+      "year": "1",
+      "section": "A",
+      "attendance_pct": "72",
+      "parent_name": "Mr. S Kumar",
+      "parent_email": "skumar.parent@outlook.com",
+      "parent_phone": "9100000003"
+    },
+    {
+      "username": "23r11a60202",
+      "password": "23r11a60203",
+      "full_name": "Aravind",
+      "email": "23r11a0203@gcet.edu.in",
+      "phone": "9000000004",
+      "roll_number": "23r11a60203",
+      "department_code": "ECE",
+      "year": "4",
+      "section": "A",
+      "attendance_pct": "20",
+      "parent_name": "Komuraiah",
+      "parent_email": "aravindailaveni@gmail.com",
+      "parent_phone": "9100000004"
+    }
+  ],
+  "\ud83d\udcca Marks": [
+    {
+      "roll_number": "Must match Students sheet",
+      "subject": "Subject name (e.g. Mathematics)",
+      "internal_marks": "Out of 30",
+      "assignment_scores": "Out of 20",
+      "exam_marks": "Out of 50 (leave blank if not done)"
+    },
+    {
+      "roll_number": "23r11a6201",
+      "subject": "Mathematics",
+      "internal_marks": "24",
+      "assignment_scores": "17",
+      "exam_marks": "42"
+    },
+    {
+      "roll_number": "23r11a6201",
+      "subject": "Physics",
+      "internal_marks": "26",
+      "assignment_scores": "18",
+      "exam_marks": "45"
+    },
+    {
+      "roll_number": "23r11a6201",
+      "subject": "Computer Science",
+      "internal_marks": "22",
+      "assignment_scores": "15",
+      "exam_marks": "40"
+    },
+    {
+      "roll_number": "23r11a6201",
+      "subject": "English",
+      "internal_marks": "25",
+      "assignment_scores": "19",
+      "exam_marks": "47"
+    }
+  ],
+  "\ud83d\udcc5 Attendance": [
+    {
+      "roll_number": "Must match Students sheet roll_number",
+      "date": "Format: DD-MM-YYYY (e.g. 15-06-2024)",
+      "subject": "Subject name (e.g. Mathematics)",
+      "status": "Present / Absent / Late",
+      "Percentage": "nan"
+    },
+    {
+      "roll_number": "23r11a6201",
+      "date": "2026-06-20 00:00:00",
+      "subject": "Mathematics",
+      "status": "Present",
+      "Percentage": "85.0"
+    },
+    {
+      "roll_number": "23r11a6201",
+      "date": "2026-06-21 00:00:00",
+      "subject": "Physics",
+      "status": "Absent",
+      "Percentage": "85.0"
+    },
+    {
+      "roll_number": "23r11a6201",
+      "date": "2026-06-22 00:00:00",
+      "subject": "Computer Science",
+      "status": "Present",
+      "Percentage": "85.0"
+    },
+    {
+      "roll_number": "23r11a6201",
+      "date": "2026-06-23 00:00:00",
+      "subject": "English",
+      "status": "Present",
+      "Percentage": "85.0"
+    }
+  ]
+}

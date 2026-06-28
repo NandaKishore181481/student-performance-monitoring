@@ -1,0 +1,7 @@
+department_code,hod_username
+Short code (e.g. CS),Username of HOD from Staff sheet
+CS,hod_cs
+ECE,hod_ece
+MECH,hod_mech
+DS,hod_ds
+AIML,hod_aiml
