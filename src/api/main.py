@@ -53,6 +53,7 @@ class StudentOut(BaseModel):
     class_section: str
     attendance_pct: float
     parent_name: Optional[str]
+    photo_path: Optional[str] = None
 
     class Config:
         orm_mode = True
@@ -170,7 +171,8 @@ def get_students(db: Session = Depends(get_db), current_user: User = Depends(get
             roll_number=p.roll_number,
             class_section=p.class_section,
             attendance_pct=p.attendance_pct,
-            parent_name=p.parent.name if p.parent else None
+            parent_name=p.parent.name if p.parent else None,
+            photo_path=p.photo_path
         ))
     return out
 

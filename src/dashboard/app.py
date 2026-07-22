@@ -25,6 +25,14 @@ from src.automation.face_recognition import FaceAttendanceManager
 from src.automation.ocr_marks import OCRMarksUploader
 from src.automation.assignment_tracker import check_pending_assignments_and_alert
 from src.reporting import generate_student_pdf_report
+from src.photo_utils import (
+    validate_photo,
+    save_student_photo,
+    delete_student_photo,
+    get_profile_photo_abs_path,
+    ensure_upload_dirs
+)
+ensure_upload_dirs()
 
 # Page Config
 st.set_page_config(
@@ -695,6 +703,7 @@ def auth_page():
         su_pass2 = st.text_input("Confirm Password *", type="password", key="su_pass2")
         
         # ── Student-specific fields ──
+        su_photo = None
         if su_role == "Student":
             st.markdown("---")
             st.markdown("**📋 Student Details**")
@@ -707,6 +716,8 @@ def auth_page():
                 su_year = st.selectbox("Year", [1, 2, 3, 4], key="su_year")
             with sc4:
                 su_section = st.text_input("Section", value="A", key="su_section")
+            
+            su_photo = st.file_uploader("Profile Photo (Optional: JPG, JPEG, PNG, max 2MB)", type=["jpg", "jpeg", "png"], key="su_photo")
         
         # ── Parent-specific fields ──
         if su_role == "Parent":
@@ -741,11 +752,17 @@ def auth_page():
                 errors.append(f"Email '{su_email}' is already registered.")
             
             # Student-specific validation
+            photo_rel_path = None
             if su_role == "Student":
                 if not su_roll:
                     errors.append("Roll Number is required for students.")
                 elif db.query(StudentProfile).filter(StudentProfile.roll_number == su_roll).first():
                     errors.append(f"Roll Number '{su_roll}' already exists.")
+                
+                if su_photo is not None:
+                    is_valid, err_msg = validate_photo(su_photo.name, su_photo.size)
+                    if not is_valid:
+                        errors.append(f"Profile Photo Error: {err_msg}")
             
             # Parent-specific validation
             if su_role == "Parent":
@@ -761,6 +778,10 @@ def auth_page():
                     st.error(e)
             else:
                 try:
+                    # Save photo if student uploaded one
+                    if su_role == "Student" and su_photo is not None:
+                        photo_rel_path = save_student_photo(su_photo.getvalue(), su_photo.name, su_roll)
+
                     # Create the User
                     new_user = User(
                         username=su_username,
@@ -781,7 +802,8 @@ def auth_page():
                             user_id=new_user.id,
                             roll_number=su_roll,
                             class_section=class_section,
-                            attendance_pct=0.0
+                            attendance_pct=0.0,
+                            photo_path=photo_rel_path
                         )
                         db.add(profile)
                     
@@ -1006,7 +1028,13 @@ if not st.session_state.authenticated:
     auth_page()
     sys.exit()
 
-# Sidebar Logout
+# Sidebar Logout & Profile Photo
+if st.session_state.user_role == "Student":
+    sp_side = db.query(StudentProfile).filter(StudentProfile.user_id == st.session_state.user_id).first()
+    if sp_side:
+        side_photo_abs = get_profile_photo_abs_path(sp_side.photo_path, sp_side.roll_number)
+        st.sidebar.image(side_photo_abs, width=80)
+
 st.sidebar.markdown(f"### Logged in as:<br/>**{st.session_state.name}**<br/><span class='text-muted'>{st.session_state.user_role}</span>", unsafe_allow_html=True)
 if st.sidebar.button("Logout", use_container_width=True):
     st.session_state.authenticated = False
@@ -1344,9 +1372,16 @@ if st.session_state.user_role == "Student":
     if not student_profile:
         st.error("⚠️ No student profile is linked to this account. Please verify that your roll number is registered.")
     else:
-        st.write(f"Welcome back, **{st.session_state.name}** | Roll Number: **{student_profile.roll_number}** | Section: **{student_profile.class_section}**")
+        # Header card with profile photo
+        h_col1, h_col2 = st.columns([1, 4])
+        with h_col1:
+            photo_abs = get_profile_photo_abs_path(student_profile.photo_path, student_profile.roll_number)
+            st.image(photo_abs, width=110)
+        with h_col2:
+            st.markdown(f"### Welcome back, **{st.session_state.name}**")
+            st.write(f"**Roll Number:** {student_profile.roll_number} | **Class/Section:** {student_profile.class_section}")
         
-        tab1, tab2 = st.tabs(["📊 Performance Dashboard", "📢 Announcements"])
+        tab1, tab2, tab3 = st.tabs(["📊 Performance Dashboard", "📢 Announcements", "👤 Profile & Photo Settings"])
         
         with tab1:
             # 1. Row cards
@@ -1438,6 +1473,71 @@ if st.session_state.user_role == "Student":
         with tab2:
             render_announcements_viewer(db, student_profile)
 
+        with tab3:
+            st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+            st.subheader("👤 Student Profile & Photo Settings")
+            
+            prof_c1, prof_c2 = st.columns([1, 2])
+            with prof_c1:
+                st.markdown("**Current Profile Photo:**")
+                current_photo_abs = get_profile_photo_abs_path(student_profile.photo_path, student_profile.roll_number)
+                st.image(current_photo_abs, width=180)
+                
+                if student_profile.photo_path:
+                    if st.button("🗑️ Remove Profile Photo", type="secondary", key="btn_remove_photo"):
+                        if st.session_state.user_id == student_profile.user_id:
+                            delete_student_photo(student_profile.photo_path)
+                            student_profile.photo_path = None
+                            db.commit()
+                            st.success("Profile photo removed. Reverted to default avatar.")
+                            st.rerun()
+                        else:
+                            st.error("Unauthorized operation.")
+            
+            with prof_c2:
+                st.markdown("**Update Profile Photo:**")
+                uploaded_photo = st.file_uploader(
+                    "Select a new image (JPG, JPEG, PNG, max 2MB)",
+                    type=["jpg", "jpeg", "png"],
+                    key="update_student_photo_input"
+                )
+                
+                if uploaded_photo is not None:
+                    st.markdown("**Image Preview:**")
+                    st.image(uploaded_photo, caption="Preview of selected image", width=160)
+                    
+                    if st.button("💾 Upload & Save Photo", type="primary", key="btn_save_photo"):
+                        if st.session_state.user_id != student_profile.user_id:
+                            st.error("Security alert: You can only update your own profile photo.")
+                        else:
+                            is_valid, err_msg = validate_photo(uploaded_photo.name, uploaded_photo.size)
+                            if not is_valid:
+                                st.error(err_msg)
+                            else:
+                                try:
+                                    if student_profile.photo_path:
+                                        delete_student_photo(student_profile.photo_path)
+                                    
+                                    new_rel_path = save_student_photo(
+                                        uploaded_photo.getvalue(),
+                                        uploaded_photo.name,
+                                        student_profile.roll_number
+                                    )
+                                    student_profile.photo_path = new_rel_path
+                                    db.commit()
+                                    st.success("✅ Profile photo updated successfully!")
+                                    st.rerun()
+                                except Exception as ex:
+                                    db.rollback()
+                                    st.error(f"Failed to update photo: {ex}")
+            
+            st.markdown("---")
+            st.markdown("**Account Information:**")
+            st.write(f"- **Full Name:** {st.session_state.name}")
+            st.write(f"- **Roll Number:** {student_profile.roll_number}")
+            st.write(f"- **Class & Section:** {student_profile.class_section}")
+            st.markdown("</div>", unsafe_allow_html=True)
+
 
 # ==================== PARENT PORTAL ====================
 elif st.session_state.user_role == "Parent":
@@ -1446,7 +1546,12 @@ elif st.session_state.user_role == "Parent":
     if not student_profile:
         st.error("⚠️ No student profile is linked to this parent account. If you just signed up, make sure your child registers first or contact the administrator to verify the roll number connection.")
     else:
-        st.write(f"Logged in as parent for student: **{student_profile.user.name}** (Roll Number: **{student_profile.roll_number}**)")
+        p_c1, p_c2 = st.columns([1, 4])
+        with p_c1:
+            child_photo = get_profile_photo_abs_path(student_profile.photo_path, student_profile.roll_number)
+            st.image(child_photo, width=90)
+        with p_c2:
+            st.write(f"Logged in as parent for student: **{student_profile.user.name}** (Roll Number: **{student_profile.roll_number}**)")
         
         c1, c2 = st.columns(2)
         with c1:

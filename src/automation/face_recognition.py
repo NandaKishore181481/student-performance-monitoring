@@ -111,7 +111,7 @@ class FaceAttendanceManager:
         self.faces_labels = []
 
         for idx, student in enumerate(students):
-            image_path = self._find_student_image(student.roll_number)
+            image_path = self._find_student_image(student.roll_number, getattr(student, "photo_path", None))
 
             # Create placeholder if no photo exists
             if not image_path:
@@ -363,7 +363,12 @@ class FaceAttendanceManager:
     # ──────────────────────────────────────────
     # Helpers
     # ──────────────────────────────────────────
-    def _find_student_image(self, roll_number: str) -> str | None:
+    def _find_student_image(self, roll_number: str, photo_path: str | None = None) -> str | None:
+        if photo_path:
+            full_p = os.path.join(BASE_DIR, photo_path)
+            if os.path.exists(full_p):
+                return full_p
+
         for ext in (".jpg", ".jpeg", ".png"):
             path = os.path.join(KNOWN_FACES_DIR, f"{roll_number}{ext}")
             if os.path.exists(path):

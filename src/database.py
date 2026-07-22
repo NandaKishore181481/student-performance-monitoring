@@ -78,18 +78,20 @@ def _run_migrations(db_path):
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        # Check if 'department' column exists in 'users' table
+        # 1. Check if 'department' column exists in 'users' table
         cursor.execute("PRAGMA table_info(users)")
-        cols = [row[1] for row in cursor.fetchall()]
-        if "department" in cols:
-            conn.close()
-            return
-        # Add the column
-        cursor.execute("ALTER TABLE users ADD COLUMN department TEXT")
-        # Backfill existing HOD/Faculty rows with 'CSE' as default
-        cursor.execute("UPDATE users SET department = 'CSE' WHERE role IN ('HOD', 'Faculty') AND department IS NULL")
-        # Migrate old 'CS' department values to 'CSE'
-        cursor.execute("UPDATE users SET department = 'CSE' WHERE department = 'CS' AND role IN ('HOD', 'Faculty')")
+        user_cols = [row[1] for row in cursor.fetchall()]
+        if "department" not in user_cols:
+            cursor.execute("ALTER TABLE users ADD COLUMN department TEXT")
+            cursor.execute("UPDATE users SET department = 'CSE' WHERE role IN ('HOD', 'Faculty') AND department IS NULL")
+            cursor.execute("UPDATE users SET department = 'CSE' WHERE department = 'CS' AND role IN ('HOD', 'Faculty')")
+        
+        # 2. Check if 'photo_path' column exists in 'student_profiles' table
+        cursor.execute("PRAGMA table_info(student_profiles)")
+        sp_cols = [row[1] for row in cursor.fetchall()]
+        if sp_cols and "photo_path" not in sp_cols:
+            cursor.execute("ALTER TABLE student_profiles ADD COLUMN photo_path TEXT")
+            
         conn.commit()
         conn.close()
     except Exception:
@@ -138,6 +140,7 @@ class StudentProfile(Base):
     roll_number = Column(String, unique=True, index=True, nullable=False)
     class_section = Column(String, nullable=False)
     attendance_pct = Column(Float, default=100.0)
+    photo_path = Column(String, nullable=True)
     
     # Relationships
     user = relationship("User", back_populates="student_profile", foreign_keys=[user_id])
