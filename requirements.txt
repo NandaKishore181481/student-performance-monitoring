@@ -27,6 +27,9 @@ reportlab>=3.6.0
 pillow>=9.0.0
 opencv-python-headless>=4.6.0
 edge-tts>=7.2.8
+# ArcFace face recognition (insightface uses ONNX models under the hood)
+insightface>=0.7.3
+onnxruntime>=1.16.0          # CPU inference for ArcFace models
 # easyocr>=1.6.0  # Optional/Recommended but heavy
 
 # Advanced NLP & Analytics

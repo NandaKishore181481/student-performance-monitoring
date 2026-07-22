@@ -25,7 +25,7 @@ A complete, AI-powered system designed to monitor student academic progress, ide
 6. **Announcement Hub**: HODs and Faculty can publish announcements targeted by Department, Year, Section, and Priority. Students see only announcements relevant to their department.
 7. **Telegram Bot Integration**: Live Telegram chat routing, rich format alerts, rate-limit resilience, and automatic fallback routing.
 8. **Automation**:
-   - OpenCV-based Haar Cascade Face Recognition for marking attendance.
+   - **ArcFace** (insightface `buffalo_sc` model) for high-accuracy face recognition — ~99.8% accuracy on LFW benchmark. Falls back to dlib `face_recognition` → OpenCV Haar + Eigenfaces when insightface is unavailable.
    - OCR-based tabular grade sheets scanning (EasyOCR/Tesseract fallbacks).
    - Automated Overdue Assignment Tracker.
 9. **Professional PDF Reports**: Auto-generated report cards using ReportLab.
@@ -151,19 +151,48 @@ Example (from default template):
 
 ### Parents
 
-Parent accounts are automatically created with the **same password as their child**. The username is `<student_username>_parent`.
+Parent accounts are automatically created with the **same password as their child**. The username format is `<student_username>_parent`.
 
-Example (from default template):
+**Complete Parent Credentials (from default template):**
 
-| Parent Username | Password | Child Username |
-|----------------|----------|----------------|
-| `cs_john_2024_parent` | `23r11a6201` | `cs_john_2024` |
-| `cs_priya_2024_parent` | `23r11a6202` | `cs_priya_2024` |
-| `23r11a60202_parent` | `23r11a60203` | `23r11a60202` |
-| `ds_peter_2024_parent` | `23r11a6701` | `ds_peter_2024` |
-| `aiml_katherine_24_parent` | `23r11a6601` | `aiml_katherine_24` |
+| Parent Username | Password | Dept |
+|----------------|----------|------|
+| `cs_john_2024_parent` | `23r11a6201` | CS |
+| `cs_priya_2024_parent` | `23r11a6202` | CS |
+| `cs_ravi_2023_parent` | `23r11a6203` | CS |
+| `23r11a60202_parent` | `23r11a60203` | ECE |
+| `cs_shannon_2024_parent` | `23r11a6204` | CS |
+| `ds_peter_2024_parent` | `23r11a6701` | DS |
+| `aiml_katherine_24_parent` | `23r11a6601` | AIML |
+| `cs_megan_2024_parent` | `23r11a6205` | CS |
+| `ds_david_2024_parent` | `23r11a6702` | DS |
+| `aiml_susan_2024_parent` | `23r11a6602` | AIML |
+| `cs_rahul_2024_parent` | `23r11a62101` | CS |
+| `ds_anita_2024_parent` | `23r11a67102` | DS |
+| `aiml_varun_2024_parent` | `23r11a66103` | AIML |
+| `ece_sneha_2024_parent` | `23r11a68104` | ECE |
+| `cs_arjun_2024_parent` | `23r11a62105` | CS |
+| `ds_meera_2024_parent` | `23r11a67106` | DS |
+| `aiml_sanjay_2024_parent` | `23r11a66107` | AIML |
+| `ece_lavanya_2024_parent` | `23r11a68108` | ECE |
+| `cs_vikram_2024_parent` | `23r11a62109` | CS |
+| `ds_kavya_2024_parent` | `23r11a67110` | DS |
+| `cs_akash_2024_parent` | `23r11a62201` | CS |
+| `ds_neha_2024_parent` | `23r11a67202` | DS |
+| `aiml_rohit_2024_parent` | `23r11a66203` | AIML |
+| `ece_pooja_2024_parent` | `23r11a68204` | ECE |
+| `cs_siddharth_2024_parent` | `23r11a62205` | CS |
+| `ds_isha_2024_parent` | `23r11a67206` | DS |
+| `aiml_karan_2024_parent` | `23r11a66207` | AIML |
+| `ece_divya_2024_parent` | `23r11a68208` | ECE |
+| `cs_tarun_2024_parent` | `23r11a62209` | CS |
+| `ds_sonia_2024_parent` | `23r11a67210` | DS |
+| `23r11a6743_parent` | `23r11a6743` | DS |
+| `23r11a6741_parent` | `23r11a6741` | DS |
+| `23r11a6739_parent` | `23r11a6739` | DS |
 
-> **Note:** The parent username is always `<student_username>_parent` and the password is always the **same password as the student** (from the `password` column in the Students sheet).
+> **Note:** The parent username is always `<student_username>_parent` and the password is the **same as the student's password** from the `password` column in the Students Excel sheet.
+
 
 ---
 
