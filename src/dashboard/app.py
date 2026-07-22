@@ -1007,7 +1007,7 @@ if not st.session_state.authenticated:
     sys.exit()
 
 # Sidebar Logout
-st.sidebar.markdown(f"### Logged in as:<br/>**{st.session_state.name}**<br/>`<span class='text-muted'>{st.session_state.user_role}</span>`", unsafe_allow_html=True)
+st.sidebar.markdown(f"### Logged in as:<br/>**{st.session_state.name}**<br/><span class='text-muted'>{st.session_state.user_role}</span>", unsafe_allow_html=True)
 if st.sidebar.button("Logout", use_container_width=True):
     st.session_state.authenticated = False
     st.session_state.user_role = None
