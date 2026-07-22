@@ -3,6 +3,10 @@ import sys
 import streamlit as st
 import pandas as pd
 import numpy as np
+try:
+    import cv2 as cv2
+except ImportError:
+    cv2 = None
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, date, timedelta
@@ -1618,9 +1622,12 @@ elif st.session_state.user_role == "Faculty":
                 with open(temp_path, "wb") as f:
                     f.write(camera_file.getbuffer())
             else:
-                # Mock scanning image
-                temp_img = np.zeros((480, 640, 3), dtype=np.uint8) + 120
-                cv2.imwrite(temp_path, temp_img)
+                # Mock scanning image — use PIL so no cv2 dependency needed here
+                from PIL import Image
+                temp_img_pil = Image.fromarray(
+                    np.full((480, 640, 3), 120, dtype=np.uint8)
+                )
+                temp_img_pil.save(temp_path)
                 
             detected_names = manager.scan_image_and_mark_attendance(db, temp_path, original_filename=camera_file.name if camera_file else None)
             
