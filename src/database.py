@@ -28,16 +28,23 @@ def get_db_path():
     if is_streamlit_cloud:
         tmp_dir = tempfile.gettempdir()
         writable_db_path = os.path.join(tmp_dir, f"student_system_{unique_suffix}.db")
-        # Check if the existing DB is missing critical tables — if so, delete and recopy
+        # Check if the existing DB is missing critical tables or photo_path column
         if os.path.exists(writable_db_path):
             try:
                 conn = sqlite3.connect(writable_db_path)
                 cursor = conn.cursor()
                 cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='announcements'")
                 ann_exists = cursor.fetchone()
-                conn.close()
                 if not ann_exists:
+                    conn.close()
                     os.remove(writable_db_path)
+                else:
+                    cursor.execute("PRAGMA table_info(student_profiles)")
+                    sp_cols = [row[1] for row in cursor.fetchall()]
+                    if sp_cols and "photo_path" not in sp_cols:
+                        cursor.execute("ALTER TABLE student_profiles ADD COLUMN photo_path TEXT")
+                        conn.commit()
+                    conn.close()
             except Exception:
                 pass
 
@@ -94,8 +101,8 @@ def _run_migrations(db_path):
             
         conn.commit()
         conn.close()
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Migration error: {e}")
 
 DB_PATH = get_db_path()
 _run_migrations(DB_PATH)

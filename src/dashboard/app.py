@@ -544,6 +544,19 @@ if "authenticated" not in st.session_state:
 
 db = SessionLocal()
 
+# Auto-login via persistent query params (survives browser refresh)
+if not st.session_state.authenticated and "session_token" in st.query_params:
+    saved_username = st.query_params["session_token"]
+    user = db.query(User).filter(User.username == saved_username).first()
+    if user:
+        st.session_state.authenticated = True
+        st.session_state.user_role = user.role
+        st.session_state.username = user.username
+        st.session_state.user_id = user.id
+        st.session_state.name = user.name
+        st.session_state.department = getattr(user, 'department', 'CS')
+
+
 # --- AUTHENTICATION SHIELD ---
 def auth_page():
     # Logo and Header
@@ -671,6 +684,11 @@ def auth_page():
                         st.session_state.user_id = user.id
                         st.session_state.name = user.name
                         st.session_state.department = user.department or "CS"
+                        
+                        # Persist session state into query params
+                        if remember_me:
+                            st.query_params["session_token"] = user.username
+                            
                         st.success(f"Welcome, {user.name}!")
                         st.rerun()
                     else:
@@ -1042,6 +1060,11 @@ if st.sidebar.button("Logout", use_container_width=True):
     st.session_state.username = None
     st.session_state.user_id = None
     st.session_state.name = None
+    
+    # Clear the persistent session token
+    if "session_token" in st.query_params:
+        del st.query_params["session_token"]
+        
     st.rerun()
 
 st.sidebar.markdown("---")
