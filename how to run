@@ -1,0 +1,86 @@
+STUDENT PERFORMANCE MONITORING — HOW TO RUN
+
+1. Prerequisites
+	- Install Git.
+	- Install Python 3.10 or later.
+	- Install Node.js 18 or later and npm if the project contains a frontend.
+	- Ensure the database service required by the project is installed and running.
+
+2. Open a terminal in the project directory
+
+	cd "C:\Users\Nanda Kishore\.gemini\antigravity\scratch\student_performance_monitoring"
+
+3. Create and activate a Python virtual environment
+
+	python -m venv .venv
+
+	Windows PowerShell:
+	.\.venv\Scripts\Activate.ps1
+
+	Windows Command Prompt:
+	.venv\Scripts\activate
+
+4. Install backend dependencies
+
+	If `requirements.txt` exists:
+
+	pip install --upgrade pip
+	pip install -r requirements.txt
+
+5. Configure environment variables
+
+	- Copy `.env.example` to `.env` if `.env.example` exists.
+	- Set the database URL, secret key, and any required API credentials in `.env`.
+	- Never commit passwords, tokens, or other secrets.
+
+6. Prepare the database
+
+	- Start the database service.
+	- Run the project's migration command, if provided. Common examples are:
+
+	python manage.py migrate
+	flask db upgrade
+	alembic upgrade head
+
+	- Load seed data if the project provides a seed command or script.
+
+7. Install and start the frontend
+
+	If a frontend directory containing `package.json` exists:
+
+	cd frontend
+	npm install
+	npm run dev
+
+	Keep this terminal running. Use a second terminal for the backend.
+
+8. Start the backend
+
+	From the project root, use the command specified by the project. Common examples are:
+
+	python app.py
+	python manage.py runserver
+	uvicorn main:app --reload
+	flask --app app run --debug
+
+9. Open the application
+
+	- Open the URL printed in the terminal, commonly http://localhost:3000 for the frontend.
+	- A backend API commonly runs at http://localhost:8000 or http://127.0.0.1:5000.
+	- Sign in with the credentials supplied by the project or create an account.
+
+10. Stop the application
+
+	Press `Ctrl+C` in each terminal, then deactivate the virtual environment:
+
+	deactivate
+
+Troubleshooting
+
+- If a command is not recognized, install the missing prerequisite and reopen the terminal.
+- If dependencies are missing, activate `.venv` and run the installation command again.
+- If the port is already in use, stop the process using it or start the application on another port.
+- If the frontend cannot reach the backend, verify the backend URL in `.env` and confirm that both services are running.
+
+
+python -m streamlit run src/dashboard/app.py
