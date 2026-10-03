@@ -1,5 +1,6 @@
 import os
 import re
+from io import BytesIO
 from sqlalchemy.orm import Session
 from src.database import StudentProfile, AcademicMarks
 
@@ -18,6 +19,11 @@ except ImportError:
     TESSERACT_AVAILABLE = False
 
 SUBJECTS_MAPPING = {
+    "computer science": "Computer Science",
+    "data science": "Data Science",
+    "mathematics": "Mathematics",
+    "physics": "Physics",
+    "chemistry": "Chemistry",
     "math": "Mathematics",
     "mat": "Mathematics",
     "sci": "Science",
@@ -28,6 +34,63 @@ SUBJECTS_MAPPING = {
     "comp": "Computer Science",
     "cs": "Computer Science"
 }
+
+
+def create_sample_marksheet_image(student_name: str, roll_number: str, class_section: str, marks) -> bytes:
+    """Create a clear PNG marks sheet that can be downloaded and re-uploaded for OCR testing."""
+    from PIL import Image, ImageDraw, ImageFont
+
+    rows = [(m.subject, m.internal_marks, m.assignment_scores, m.exam_marks) for m in marks]
+    width = 1500
+    height = max(720, 410 + (len(rows) * 92))
+    image = Image.new("RGB", (width, height), "white")
+    draw = ImageDraw.Draw(image)
+
+    windows_fonts = os.path.join(os.environ.get("WINDIR", "C:\\Windows"), "Fonts")
+    regular_fonts = [
+        os.path.join(windows_fonts, "arial.ttf"),
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    ]
+    bold_fonts = [
+        os.path.join(windows_fonts, "arialbd.ttf"),
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    ]
+
+    def load_font(candidates, size):
+        for candidate in candidates:
+            if os.path.exists(candidate):
+                return ImageFont.truetype(candidate, size)
+        return ImageFont.load_default()
+
+    title_font = load_font(bold_fonts, 42)
+    body_font = load_font(regular_fonts, 30)
+    header_font = load_font(bold_fonts, 28)
+
+    draw.rectangle((45, 35, width - 45, height - 35), outline="#1d4ed8", width=5)
+    draw.text((80, 80), "EDUINSIGHT AI - OCR TEST MARKS SHEET", fill="#0f172a", font=title_font)
+    draw.text((85, 155), f"Student: {student_name}", fill="#111827", font=body_font)
+    draw.text((85, 200), f"Roll Number: {roll_number}    Class: {class_section}", fill="#111827", font=body_font)
+    draw.text((85, 245), "Internal (30)     Assignment (20)     Exam (50)", fill="#374151", font=body_font)
+
+    top = 310
+    columns = [80, 630, 900, 1170]
+    row_height = 74
+    headers = ["Subject", "Internal", "Assignment", "Exam"]
+    draw.rectangle((70, top, width - 70, top + row_height), fill="#1d4ed8")
+    for x, header in zip(columns, headers):
+        draw.text((x, top + 16), header, fill="white", font=header_font)
+
+    for index, (subject, internal, assignment, exam) in enumerate(rows, start=1):
+        y = top + (index * row_height)
+        fill = "#eff6ff" if index % 2 else "#ffffff"
+        draw.rectangle((70, y, width - 70, y + row_height), fill=fill, outline="#93c5fd", width=2)
+        values = [subject, f"{internal:g}", f"{assignment:g}", f"{exam:g}" if exam is not None else "0"]
+        for x, value in zip(columns, values):
+            draw.text((x, y + 18), value, fill="#111827", font=body_font)
+
+    output = BytesIO()
+    image.save(output, format="PNG")
+    return output.getvalue()
 
 class OCRMarksUploader:
     def __init__(self):

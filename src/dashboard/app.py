@@ -22,7 +22,7 @@ from src.ml_models import predict_student_risk, get_explainable_ai, train_and_se
 from src.analytics import run_student_clustering, analyze_remark_sentiment, predict_exam_pass_probability
 from src.alerts import send_email, send_sms, send_whatsapp, generate_personalized_ai_alert
 from src.automation.face_recognition import FaceAttendanceManager, CV2_AVAILABLE, CV2_IMPORT_ERROR
-from src.automation.ocr_marks import OCRMarksUploader
+from src.automation.ocr_marks import OCRMarksUploader, create_sample_marksheet_image
 from src.automation.assignment_tracker import check_pending_assignments_and_alert
 from src.reporting import generate_student_pdf_report
 from src.photo_utils import (
@@ -1843,6 +1843,20 @@ elif st.session_state.user_role == "Faculty":
         st.write("Upload a scanned report card or gradeheet, and the OCR engine will automatically extract the marks table.")
         
         target_student = st.selectbox("Upload destination student", student_list, format_func=lambda x: f"{x.user.name} ({x.roll_number})", key="ocr_dest")
+        if target_student:
+            sample_marksheet = create_sample_marksheet_image(
+                target_student.user.name,
+                target_student.roll_number,
+                target_student.class_section,
+                target_student.marks,
+            )
+            st.download_button(
+                "Download sample marks sheet for OCR testing",
+                data=sample_marksheet,
+                file_name=f"ocr_marks_{target_student.roll_number}.png",
+                mime="image/png",
+                use_container_width=True,
+            )
         ocr_file = st.file_uploader("Upload Grade Sheet Scanned Image", type=["jpg", "png", "jpeg"], key="ocr_uploader")
         
         if st.button("Extract and Save Table Marks", use_container_width=True):
