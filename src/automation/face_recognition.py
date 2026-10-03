@@ -1,5 +1,14 @@
 import os
-import cv2
+try:
+    import cv2
+    CV2_AVAILABLE = True
+    CV2_IMPORT_ERROR = ""
+except ImportError as exc:
+    # Face attendance is optional. Keep the main dashboard usable when a
+    # deployment cannot provide OpenCV's native runtime dependencies.
+    cv2 = None
+    CV2_AVAILABLE = False
+    CV2_IMPORT_ERROR = str(exc)
 import numpy as np
 from datetime import datetime
 from sqlalchemy.orm import Session

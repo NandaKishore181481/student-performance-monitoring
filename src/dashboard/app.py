@@ -21,7 +21,7 @@ seed_database()
 from src.ml_models import predict_student_risk, get_explainable_ai, train_and_select_best_model
 from src.analytics import run_student_clustering, analyze_remark_sentiment, predict_exam_pass_probability
 from src.alerts import send_email, send_sms, send_whatsapp, generate_personalized_ai_alert
-from src.automation.face_recognition import FaceAttendanceManager
+from src.automation.face_recognition import FaceAttendanceManager, CV2_AVAILABLE, CV2_IMPORT_ERROR
 from src.automation.ocr_marks import OCRMarksUploader
 from src.automation.assignment_tracker import check_pending_assignments_and_alert
 from src.reporting import generate_student_pdf_report
@@ -1798,6 +1798,14 @@ elif st.session_state.user_role == "Faculty":
             camera_file = st.camera_input("Open Camera Viewer")
         
         if st.button("Run Face Scan Attendance", use_container_width=True):
+            if not CV2_AVAILABLE:
+                st.error(
+                    "Face attendance is unavailable in this deployment because OpenCV could not load. "
+                    "The rest of the dashboard remains available."
+                )
+                st.caption(f"OpenCV error: {CV2_IMPORT_ERROR}")
+                st.stop()
+
             manager = FaceAttendanceManager()
             manager.load_known_faces(db)
             
