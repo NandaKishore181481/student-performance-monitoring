@@ -1559,6 +1559,37 @@ if st.session_state.user_role == "Student":
                                     st.error(f"Failed to update photo: {ex}")
             
             st.markdown("---")
+            st.subheader("Contact & Telegram Alert Settings")
+            student_user = db.query(User).filter(User.id == st.session_state.user_id).first()
+            if student_user:
+                with st.form("student_contact_settings"):
+                    updated_email = st.text_input("Email address for alerts", value=student_user.email or "")
+                    updated_chat_id = st.text_input(
+                        "Telegram Chat ID",
+                        value=student_user.phone or "",
+                        placeholder="e.g. 1688994372",
+                        help="Open the college Telegram bot, tap Start, then get your numeric Chat ID from @userinfobot.",
+                    )
+                    save_student_contact = st.form_submit_button("Save Alert Settings", use_container_width=True)
+
+                if save_student_contact:
+                    clean_email = updated_email.strip().lower()
+                    clean_chat_id = updated_chat_id.strip()
+                    existing_user = db.query(User).filter(User.email == clean_email, User.id != student_user.id).first()
+                    if not clean_email or "@" not in clean_email:
+                        st.error("Enter a valid email address.")
+                    elif existing_user:
+                        st.error("That email address is already linked to another account.")
+                    elif clean_chat_id and not clean_chat_id.lstrip("-").isdigit():
+                        st.error("Telegram Chat ID must contain only digits.")
+                    else:
+                        student_user.email = clean_email
+                        student_user.phone = clean_chat_id
+                        db.commit()
+                        st.success("Alert contact settings saved. Start the Telegram bot before expecting Telegram messages.")
+                        st.rerun()
+
+            st.markdown("---")
             st.markdown("**Account Information:**")
             st.write(f"- **Full Name:** {st.session_state.name}")
             st.write(f"- **Roll Number:** {student_profile.roll_number}")
@@ -1627,6 +1658,29 @@ elif st.session_state.user_role == "Parent":
             2. Get your unique numeric **Chat ID** (find it by sending a message to `@userinfobot` on Telegram).
             3. Paste your Chat ID below and click **Save Connection Settings**.
             """)
+            parent_account = db.query(User).filter(User.id == st.session_state.user_id).first()
+            if parent_account:
+                with st.form("parent_email_settings"):
+                    updated_parent_email = st.text_input(
+                        "Email address for alerts",
+                        value=parent_account.email or "",
+                        key="parent_alert_email",
+                    )
+                    save_parent_email = st.form_submit_button("Save Email Address", use_container_width=True)
+
+                if save_parent_email:
+                    clean_email = updated_parent_email.strip().lower()
+                    existing_user = db.query(User).filter(User.email == clean_email, User.id != parent_account.id).first()
+                    if not clean_email or "@" not in clean_email:
+                        st.error("Enter a valid email address.")
+                    elif existing_user:
+                        st.error("That email address is already linked to another account.")
+                    else:
+                        parent_account.email = clean_email
+                        db.commit()
+                        st.success("Email address saved for alert delivery.")
+                        st.rerun()
+
             parent_phone = student_profile.parent.phone if (student_profile.parent and student_profile.parent.phone) else ""
             default_chat_id = parent_phone if (parent_phone and not parent_phone.startswith("910000")) else ""
             new_chat_id = st.text_input("Enter your Telegram Chat ID", value=default_chat_id, placeholder="e.g. 1688994372", key="parent_tg_chat_id")
