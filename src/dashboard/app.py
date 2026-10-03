@@ -3,6 +3,7 @@ import sys
 import streamlit as st
 import pandas as pd
 import numpy as np
+from sqlalchemy.orm import joinedload
 try:
     import cv2 as cv2
 except ImportError:
@@ -722,6 +723,7 @@ def auth_page():
         
         # ── Student-specific fields ──
         su_photo = None
+        su_dept = ""
         if su_role == "Student":
             st.markdown("---")
             st.markdown("**📋 Student Details**")
@@ -736,6 +738,12 @@ def auth_page():
                 su_section = st.text_input("Section", value="A", key="su_section")
             
             su_photo = st.file_uploader("Profile Photo (Optional: JPG, JPEG, PNG, max 2MB)", type=["jpg", "jpeg", "png"], key="su_photo")
+        
+        # ── Faculty/HOD-specific fields ──
+        if su_role in ["Faculty", "HOD"]:
+            st.markdown("---")
+            st.markdown("**🏫 Faculty/HOD Details**")
+            su_dept = st.selectbox("Department *", ["CSE", "ECE", "EEE", "DS", "AIML", "MECH", "CS"], key="su_faculty_dept", help="Select your department")
         
         # ── Parent-specific fields ──
         if su_role == "Parent":
@@ -791,6 +799,11 @@ def auth_page():
                     if not child_profile:
                         errors.append(f"No student found with Roll Number '{su_child_roll}'.")
             
+            # Faculty/HOD-specific validation
+            if su_role in ["Faculty", "HOD"]:
+                if not su_dept:
+                    errors.append("Department is required for Faculty and HOD.")
+            
             if errors:
                 for e in errors:
                     st.error(e)
@@ -807,7 +820,8 @@ def auth_page():
                         role=su_role,
                         name=su_fullname,
                         email=su_email,
-                        phone=su_phone or ""
+                        phone=su_phone or "",
+                        department=su_dept if su_role in ["Faculty", "HOD"] else None
                     )
                     db.add(new_user)
                     db.flush()
@@ -1365,9 +1379,13 @@ def render_announcements_viewer(db, student_profile):
 # Fetch details if student or parent
 student_profile = None
 if st.session_state.user_role == "Student":
-    student_profile = db.query(StudentProfile).filter(StudentProfile.user_id == st.session_state.user_id).first()
+    student_profile = db.query(StudentProfile).options(
+        joinedload(StudentProfile.marks)
+    ).filter(StudentProfile.user_id == st.session_state.user_id).first()
 elif st.session_state.user_role == "Parent":
-    student_profile = db.query(StudentProfile).filter(StudentProfile.parent_id == st.session_state.user_id).first()
+    student_profile = db.query(StudentProfile).options(
+        joinedload(StudentProfile.marks)
+    ).filter(StudentProfile.parent_id == st.session_state.user_id).first()
 
 # Helper for risk details
 def get_student_ml_data(profile):
@@ -1472,7 +1490,77 @@ if st.session_state.user_role == "Student":
                     st.caption(r["description"])
                     st.write("")
                 st.markdown("</div>", unsafe_allow_html=True)
+            
+            # Detailed Marks Table
+            st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
+            st.subheader("📋 Detailed Subject-wise Marks")
+            
+            marks_records = student_profile.marks
+            if marks_records:
+                marks_data = []
+                for m in marks_records:
+                    total = m.internal_marks + m.assignment_scores + (m.exam_marks or 0.0)
+                    percentage = (total / 100.0) * 100
+                    grade = "A+" if percentage >= 90 else "A" if percentage >= 80 else "B+" if percentage >= 70 else "B" if percentage >= 60 else "C" if percentage >= 50 else "D" if percentage >= 40 else "F"
+                    status = "Pass" if total >= 40 else "Fail"
+                    
+                    marks_data.append({
+                        "Subject": m.subject,
+                        "Internal (30)": f"{m.internal_marks:.1f}",
+                        "Assignment (20)": f"{m.assignment_scores:.1f}",
+                        "Exam (50)": f"{m.exam_marks:.1f}" if m.exam_marks is not None else "N/A",
+                        "Total (100)": f"{total:.1f}",
+                        "Percentage": f"{percentage:.1f}%",
+                        "Grade": grade,
+                        "Status": status
+                    })
                 
+                marks_df = pd.DataFrame(marks_data)
+                
+                def highlight_status(val):
+                    if val == "Fail":
+                        return "background-color: #FEF2F2; color: #DC2626; font-weight: bold;"
+                    elif val == "Pass":
+                        return "background-color: #F0FDF4; color: #16A34A; font-weight: bold;"
+                    return ""
+                
+                def highlight_grade(val):
+                    if val in ["A+", "A"]:
+                        return "color: #10B981; font-weight: bold;"
+                    elif val in ["B+", "B"]:
+                        return "color: #3B82F6; font-weight: bold;"
+                    elif val in ["C", "D"]:
+                        return "color: #F59E0B; font-weight: bold;"
+                    elif val == "F":
+                        return "color: #EF4444; font-weight: bold;"
+                    return ""
+                
+                styled_df = marks_df.style.map(highlight_status, subset=["Status"]).map(highlight_grade, subset=["Grade"])
+                st.dataframe(styled_df, use_container_width=True, hide_index=True)
+                
+                # Summary row
+                total_internal = sum(m.internal_marks for m in marks_records)
+                total_assignment = sum(m.assignment_scores for m in marks_records)
+                total_exam = sum(m.exam_marks or 0.0 for m in marks_records)
+                grand_total = total_internal + total_assignment + total_exam
+                avg_percentage = (grand_total / (len(marks_records) * 100)) * 100 if marks_records else 0
+                
+                st.markdown("---")
+                summary_cols = st.columns(5)
+                with summary_cols[0]:
+                    st.metric("Total Internal", f"{total_internal:.1f}")
+                with summary_cols[1]:
+                    st.metric("Total Assignment", f"{total_assignment:.1f}")
+                with summary_cols[2]:
+                    st.metric("Total Exam", f"{total_exam:.1f}")
+                with summary_cols[3]:
+                    st.metric("Grand Total", f"{grand_total:.1f}")
+                with summary_cols[4]:
+                    st.metric("Average %", f"{avg_percentage:.1f}%")
+            else:
+                st.info("No marks recorded yet for this student.")
+            st.markdown("</div>", unsafe_allow_html=True)
+            
             # 3. Actions and Report
             st.markdown("<div class='premium-card'>", unsafe_allow_html=True)
             st.subheader("Actionable Recommendations")
@@ -1711,7 +1799,9 @@ elif st.session_state.user_role == "Faculty":
         # Dropdown selection of students
         # Filter students to only show those in the faculty's department
         faculty_dept = st.session_state.get("department", "CS")
-        student_list = db.query(StudentProfile).filter(
+        student_list = db.query(StudentProfile).options(
+            joinedload(StudentProfile.marks)
+        ).filter(
             StudentProfile.class_section.like(f"{faculty_dept}-%")
         ).all()
         selected_stud = st.selectbox("Select Student", student_list, format_func=lambda x: f"{x.user.name} ({x.roll_number})")
