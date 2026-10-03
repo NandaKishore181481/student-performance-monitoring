@@ -286,6 +286,56 @@ def send_email(db: Session, student_id: int, recipient_email: str, subject: str,
         print(f"SMTP Credentials empty. {sim_message}")
         return True
 
+def broadcast_announcement_to_email(db: Session, announcement_id: int) -> int:
+    """Email a published announcement to every matching student and parent.
+
+    Student and parent email addresses can overlap, so each address receives at
+    most one copy of an announcement.
+    """
+    announcement = db.query(Announcement).filter(Announcement.id == announcement_id).first()
+    if not announcement:
+        print(f"Announcement ID {announcement_id} not found.")
+        return 0
+
+    subject = f"[{announcement.priority.upper()}] {announcement.title}"
+    message = (
+        f"EduInsight AI - New Academic Announcement\n\n"
+        f"{announcement.title}\n\n"
+        f"{announcement.description}\n\n"
+        f"Published by: {announcement.creator.name if announcement.creator else 'Admin'} "
+        f"({announcement.role})\n"
+        f"Available: {announcement.publish_date} to {announcement.expiry_date}"
+    )
+    sent_count = 0
+    dispatched_emails = set()
+
+    for student in db.query(StudentProfile).all():
+        dept = student.class_section.split("-")[0] if "-" in student.class_section else "CS"
+        sec_part = student.class_section.split("-")[1] if "-" in student.class_section else student.class_section
+        year = sec_part[1] if len(sec_part) >= 3 and sec_part.startswith("Y") else "All"
+        section = sec_part[2:] if len(sec_part) >= 3 and sec_part.startswith("Y") else "All"
+
+        if announcement.target_department != "All" and dept != announcement.target_department:
+            continue
+        if announcement.target_year != "All" and year != announcement.target_year:
+            continue
+        if announcement.target_section != "All" and section != announcement.target_section:
+            continue
+
+        recipients = [
+            student.user.email if student.user else "",
+            student.parent.email if student.parent else "",
+        ]
+        for recipient_email in recipients:
+            normalized_email = recipient_email.strip().lower() if recipient_email else ""
+            if not normalized_email or normalized_email in dispatched_emails:
+                continue
+            dispatched_emails.add(normalized_email)
+            if send_email(db, student.id, recipient_email, subject, message):
+                sent_count += 1
+
+    return sent_count
+
 def broadcast_announcement_to_telegram(db: Session, announcement_id: int) -> int:
     """
     Finds all students matching the target audience filters of the announcement
@@ -368,18 +418,21 @@ def broadcast_announcement_to_telegram(db: Session, announcement_id: int) -> int
             # 1. Send Text Message
             url_msg = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
             payload = {"chat_id": chat_id, "text": msg_text, "parse_mode": "Markdown"}
+            text_delivered = False
             
             try:
                 time.sleep(0.05)  # Pace sending
                 res = requests.post(url_msg, json=payload, timeout=10)
                 if res.status_code == 200:
                     print(f"Sent announcement text to Chat ID: {chat_id}")
+                    text_delivered = True
                 else:
                     print(f"Failed to send text to {chat_id}: {res.text}")
                     if chat_id != telegram_chat_id and telegram_chat_id:
                         print("Trying fallback developer chat...")
                         fallback_payload = {"chat_id": telegram_chat_id, "text": f"[Telegram Fallback] {msg_text}", "parse_mode": "Markdown"}
-                        requests.post(url_msg, json=fallback_payload, timeout=10)
+                        fallback_res = requests.post(url_msg, json=fallback_payload, timeout=10)
+                        text_delivered = fallback_res.status_code == 200
             except Exception as e:
                 print(f"Telegram send error: {e}")
                 
@@ -409,7 +462,8 @@ def broadcast_announcement_to_telegram(db: Session, announcement_id: int) -> int
                     except Exception as e:
                         print(f"Telegram voice send error: {e}")
             
-            sent_count += 1
+            if text_delivered:
+                sent_count += 1
             
     return sent_count
 

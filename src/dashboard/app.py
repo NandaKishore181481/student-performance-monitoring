@@ -1208,11 +1208,15 @@ def render_announcement_hub(db, current_user):
                 
                 st.success("Announcement published successfully!")
                 
-                # Trigger Telegram broadcast
-                from src.alerts import broadcast_announcement_to_telegram
-                sent_alerts = broadcast_announcement_to_telegram(db, new_ann.id)
-                if sent_alerts > 0:
-                    st.info(f"Broadcasted text and voice memo to {sent_alerts} Telegram Chat IDs!")
+                # Deliver the announcement through both configured notification channels.
+                from src.alerts import broadcast_announcement_to_email, broadcast_announcement_to_telegram
+                email_sent = broadcast_announcement_to_email(db, new_ann.id)
+                telegram_sent = broadcast_announcement_to_telegram(db, new_ann.id)
+                if email_sent or telegram_sent:
+                    st.info(
+                        f"Announcement delivery complete: {email_sent} email recipient(s), "
+                        f"{telegram_sent} Telegram chat(s)."
+                    )
                     
                 st.rerun()
 
